@@ -1,7 +1,6 @@
 import pandas as pd
 from handlers.db_connection import DatabaseConnection
 from settings import queries
-from settings.database import Database
 from typing import Dict, Optional
 import json
 

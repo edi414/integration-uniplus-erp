@@ -31,23 +31,9 @@ class NotasFiscaisETL:
             }
             
             df = df.rename(columns=column_mapping)
-            
             df['arquivo_xml_text'] = None
             
-            if 'data_inclusao' in df.columns:
-                df['data_inclusao'] = df['data_inclusao'].astype(str)
-                df.loc[df['data_inclusao'].str.contains('NaT|nat|NaN|nan|None', case=False, na=False), 'data_inclusao'] = None
-                df.loc[df['data_inclusao'] == 'None', 'data_inclusao'] = None
-                df.loc[df['data_inclusao'] == 'nan', 'data_inclusao'] = None
-                df.loc[df['data_inclusao'] == 'NaT', 'data_inclusao'] = None
-            
-            if 'vencimento' in df.columns:
-                df['vencimento'] = df['vencimento'].astype(str)
-                df.loc[df['vencimento'].str.contains('NaT|nat|NaN|nan|None', case=False, na=False), 'vencimento'] = None
-                df.loc[df['vencimento'] == 'None', 'vencimento'] = None
-                df.loc[df['vencimento'] == 'nan', 'vencimento'] = None
-                df.loc[df['vencimento'] == 'NaT', 'vencimento'] = None
-            
+            # Text columns - convert to string and clean None values
             text_columns = ['id_uniplus', 'fornecedor', 'cpnj_cpf', 'situacao', 'manifestacao', 'status', 'chave', 'processed', 'arquivo_xml_text']
             for col in text_columns:
                 if col in df.columns:
@@ -62,11 +48,13 @@ class NotasFiscaisETL:
             for col in timestamp_columns:
                 if col in df.columns:
                     df[col] = pd.to_datetime(df[col], errors='coerce')
+                    df[col] = df[col].replace({pd.NaT: None})
             
             # DATE column (vencimento)
             if 'vencimento' in df.columns:
                 df['vencimento'] = pd.to_datetime(df['vencimento'], errors='coerce')
-                df.loc[pd.notna(df['vencimento']), 'vencimento'] = df.loc[pd.notna(df['vencimento']), 'vencimento'].dt.date
+                mask = pd.notna(df['vencimento'])
+                df.loc[mask, 'vencimento'] = df.loc[mask, 'vencimento'].dt.date
             
             # NUMERIC column (valor)
             if 'valor' in df.columns:
@@ -79,6 +67,12 @@ class NotasFiscaisETL:
             ]
             
             result = df[columns]
+            
+            # Final cleanup: replace any remaining NaT values with None
+            for col in result.columns:
+                if result[col].dtype == 'datetime64[ns]':
+                    result[col] = result[col].replace({pd.NaT: None})
+            
             self.logger.debug(f"Transformation completed, returning {len(result)} records")
             
             return result

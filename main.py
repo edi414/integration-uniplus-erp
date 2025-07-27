@@ -52,10 +52,10 @@ if __name__ == "__main__":
     # # Example: Run notas fiscais ETL for current month
     # current_month = date.today().replace(day=1).strftime('%Y-%m-%d')
     # print(f"Running notas fiscais ETL from {current_month} onwards")
-    # run_notas_fiscais_etl()
+    run_notas_fiscais_etl()
     
 
-    stats = run_xml_download()
+    #stats = run_xml_download()
     # print(f"Download completed: {stats}")
 
 

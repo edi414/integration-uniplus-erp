@@ -1,12 +1,13 @@
 import pandas as pd
 from handlers.db_connection import DatabaseConnection
-from settings import queries
+from handlers.query_loader import get_etl_query, get_etl_config
+from handlers.log_handler import setup_logger
 from typing import Dict, Optional
-import json
 
 class VendasDailyETL:
     def __init__(self, connection_config: Dict):
         self.connection = DatabaseConnection(connection_config)
+        self.logger = setup_logger("vendas_daily_etl", log_file="logs/vendas_daily_etl.log")
         
     def transform_data(self, df: pd.DataFrame) -> pd.DataFrame:
         column_mapping = {
@@ -54,20 +55,16 @@ class VendasDailyETL:
         """
         Extract data from source database
         """
-        with open('settings/queries.json', 'r') as f:
-            queries = json.load(f)
-            
-        query = queries['vendas_daily']['query_unico']
+        query = get_etl_query('vendas_daily')
         return self.connection.get_data(query, {'data': date})
 
     def load_data(self, df: pd.DataFrame) -> None:
         """
         Load transformed data into target table
         """
-        with open('settings/queries.json', 'r') as f:
-            queries = json.load(f)
-        table_name = queries['vendas_daily'].get('table', 'fato_vendas_diarias')
-        schema = queries['vendas_daily'].get('schema', 'public')
+        config = get_etl_config('vendas_daily')
+        table_name = config.get('table', 'fato_vendas_diarias')
+        schema = config.get('schema', 'public')
         self.connection.insert_batch(
             table_name=table_name,
             data=df,
@@ -78,14 +75,33 @@ class VendasDailyETL:
         """
         Execute the full ETL process
         """
-        # Extract
-        raw_data = self.extract_data(date)
-        
-        # Transform
-        transformed_data = self.transform_data(raw_data)
-        
-        # Load
-        self.load_data(transformed_data)
+        try:
+            self.logger.info(f"Starting ETL process for vendas daily with date: {date}")
+            
+            # Extract
+            self.logger.info("Starting data extraction...")
+            raw_data = self.extract_data(date)
+            
+            if raw_data.empty:
+                self.logger.warning(f"No data found for date: {date}")
+                return
+            
+            self.logger.info(f"Extracted {len(raw_data)} records from source database")
+            
+            # Transform
+            self.logger.info("Starting data transformation...")
+            transformed_data = self.transform_data(raw_data)
+            self.logger.info(f"Transformed {len(transformed_data)} records")
+            
+            # Load
+            self.logger.info("Starting data load...")
+            self.load_data(transformed_data)
+            
+            self.logger.info(f"ETL completed successfully. Processed {len(transformed_data)} records.")
+            
+        except Exception as e:
+            self.logger.error(f"ETL process failed with error: {str(e)}")
+            raise
 
 
 

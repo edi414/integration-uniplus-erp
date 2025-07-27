@@ -1,0 +1,59 @@
+{
+    "vendas_daily": {
+        "database": "banco_mercado",
+        "schema": "public",
+        "table": "fato_vendas_diarias",
+        "query_file": "vendas_daily.sql",
+        "logic_check_missing_dates": ["data_venda"]
+    },
+    
+    "icms_daily": {
+        "database": "banco_mercado",
+        "schema": "public", 
+        "table": "fato_icms_diario",
+        "query_file": "icms_daily.sql",
+        "logic_check_missing_dates": ["data_emissao"]
+    },
+
+    "gestao_nfe": {
+        "database": "banco_mercado",
+        "schema": "public",
+        "table": "fato_nfe",
+        "query_file": "gestao_nfe.sql",
+        "logic_check_missing_dates": []
+    },
+
+    "precos_produtos": {
+        "database": "banco_mercado",
+        "schema": "public",
+        "table": "fato_precos",
+        "query_file": "precos_produtos.sql",
+        "logic_check_missing_dates": ["data_vigencia"]
+    },
+
+    "movimentacao_daily": {
+        "database": "banco_mercado",
+        "schema": "public",
+        "table": "fato_movimentacao_diaria",
+        "query_file": "movimentacao_daily.sql",
+        "logic_check_missing_dates": ["data_movimentacao"]
+    },
+
+    "notas_fiscais": {
+        "database": "banco_mercado",
+        "schema": "public",
+        "table": "report_uniplus_notas_fiscais",
+        "query_file": "notas_fiscais.sql",
+        "logic_check_missing_dates": ["data_emissao"]
+    },
+
+    "xml_downloader": {
+        "database": "banco_mercado",
+        "schema": "public",
+        "default_folder": "G:\\Meu Drive",
+        "query_files": {
+            "filter": "xml_download_filter.sql",
+            "fetch": "xml_binary_fetch.sql"
+        }
+    }
+} 

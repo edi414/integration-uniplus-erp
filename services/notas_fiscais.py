@@ -61,7 +61,10 @@ class NotasFiscaisETL:
             if 'vencimento' in df.columns:
                 df['vencimento'] = df['vencimento'].astype(str)
                 df.loc[df['vencimento'].str.contains('NaT|nat|NaN|nan|None', case=False, na=False), 'vencimento'] = None
-                df['vencimento'] = pd.to_datetime(df['vencimento'], errors='coerce').dt.date
+                # Convert to datetime first, then extract date, handling NaT properly
+                df['vencimento'] = pd.to_datetime(df['vencimento'], errors='coerce')
+                df['vencimento'] = df['vencimento'].where(pd.notna(df['vencimento']), None)
+                df.loc[pd.notna(df['vencimento']), 'vencimento'] = df.loc[pd.notna(df['vencimento']), 'vencimento'].dt.date
             
             # NUMERIC column (valor)
             if 'valor' in df.columns:

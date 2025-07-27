@@ -1,17 +1,17 @@
-with nfes as (
-    select distinct 
+WITH nfes AS (
+    SELECT DISTINCT 
         runf.chave, 
-        to_date(runf.data_emissao, 'DD/MM/YYYY') as data_emissao
-    from report_uniplus_notas_fiscais runf
-    left join (
-        select distinct chave_nfe 
-        from precificacao p
-    ) as p on p.chave_nfe = runf.chave 
-    where p.chave_nfe is null
-        and runf.situacao = 'autorizada'
-        and runf.status not in ('entrada_fornecedor', 'cancelada_pelo_fornecedor')
-    order by 2 desc
+        runf.data_emissao
+    FROM report_uniplus_notas_fiscais runf
+    LEFT JOIN (
+        SELECT DISTINCT chave_nfe 
+        FROM precificacao p
+    ) AS p ON p.chave_nfe = runf.chave 
+    WHERE p.chave_nfe IS NULL
+      AND runf.situacao = 'autorizada'
+      AND runf.status NOT IN ('entrada_fornecedor', 'cancelada_pelo_fornecedor')
+    ORDER BY runf.data_emissao DESC
 )
-select distinct chave 
-from nfes 
-where data_emissao >= current_date::date - 60 
+SELECT DISTINCT chave 
+FROM nfes 
+WHERE data_emissao >= current_date - INTERVAL '60 days';

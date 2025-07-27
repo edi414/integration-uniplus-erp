@@ -11,11 +11,8 @@ class NotasFiscaisETL:
         self.logger = setup_logger("notas_fiscais_etl", log_file="logs/notas_fiscais_etl.log")
         
     def transform_data(self, df: pd.DataFrame) -> pd.DataFrame:
-        """
-        Transform the raw data to match the target table structure
-        """
         try:
-            self.logger.debug(f"Starting transformation of {len(df)} records")
+            self.logger.info(f"Starting transformation of {len(df)} records")
             
             column_mapping = {
                 'id_uniplus': 'id_uniplus',
@@ -33,16 +30,16 @@ class NotasFiscaisETL:
                 'arquivoxml': 'arquivo_xml'
             }
             
-            # Rename columns to match target table
-            self.logger.debug("Renaming columns...")
             df = df.rename(columns=column_mapping)
             
-            # Add arquivo_xml_text column (initially null)
             df['arquivo_xml_text'] = None
             
-            # Ensure processed is text type ('false' instead of boolean)
-            self.logger.debug("Converting processed column to text...")
             df['processed'] = df['processed'].astype(str).str.lower()
+            
+            if 'data_inclusao' in df.columns:
+                df['data_inclusao'] = df['data_inclusao'].astype(str)
+                df.loc[df['data_inclusao'].str.contains('NaT|nat|NaN|nan', case=False, na=False), 'data_inclusao'] = None
+                df.loc[df['data_inclusao'] == 'None', 'data_inclusao'] = None
             
             columns = [
                 'id_uniplus', 'data_emissao', 'fornecedor', 'cpnj_cpf', 'valor',
@@ -60,13 +57,7 @@ class NotasFiscaisETL:
             raise
 
     def extract_data(self, date_filter: Optional[str] = None) -> pd.DataFrame:
-        """
-        Extract data from source database
-        Args:
-            date_filter: Optional date filter for data_emissao (format: 'YYYY-MM-DD')
-        """
         try:
-            self.logger.debug("Loading SQL query from file...")
             query = get_etl_query('notas_fiscais')
             
             params = {}
@@ -74,7 +65,6 @@ class NotasFiscaisETL:
                 params['data_emissao'] = date_filter
                 self.logger.debug(f"Using date filter: {date_filter}")
             
-            self.logger.debug("Executing query against source database...")
             result = self.source_connection.get_data(query, params)
             self.logger.debug(f"Query executed successfully, returned {len(result)} rows")
             
@@ -85,42 +75,38 @@ class NotasFiscaisETL:
             raise
 
     def load_data(self, df: pd.DataFrame) -> None:
-        """
-        Load transformed data into target table using upsert
-        """
         try:
-            self.logger.debug("Loading ETL configuration...")
             config = get_etl_config('notas_fiscais')
             table_name = config.get('table', 'report_uniplus_notas_fiscais')
             schema = config.get('schema', 'public')
             
             self.logger.debug(f"Target table: {schema}.{table_name}")
-            self.logger.debug(f"Loading {len(df)} records using upsert...")
             
-            # Use upsert to handle duplicates based on chave (unique constraint)
-            self.target_connection.upsert(
+            self.logger.info(f"Clearing table {schema}.{table_name}...")
+            self.target_connection.connect()
+            with self.target_connection.connection.cursor() as cursor:
+                cursor.execute(f"TRUNCATE TABLE {schema}.{table_name}")
+                self.target_connection.connection.commit()
+            self.target_connection.disconnect()
+            self.logger.info("Table cleared successfully")
+            
+            self.logger.info(f"Inserting {len(df)} records...")
+            self.target_connection.insert_batch(
                 table_name=table_name,
                 data=df,
-                unique_columns=['chave'],
                 schema=schema
             )
             
-            self.logger.debug("Data load completed successfully")
+            self.logger.info("Data load completed successfully")
             
         except Exception as e:
             self.logger.error(f"Error during data load: {str(e)}")
             raise
 
     def run_etl(self, date_filter: Optional[str] = None) -> None:
-        """
-        Execute the full ETL process
-        Args:
-            date_filter: Optional date filter for data_emissao (format: 'YYYY-MM-DD')
-        """
         try:
-            self.logger.info(f"Starting ETL process for notas fiscais with date filter: {date_filter}")
+            self.logger.info(f"Starting ETL process for notas fiscais")
             
-            # Extract
             self.logger.info("Starting data extraction...")
             raw_data = self.extract_data(date_filter)
             
@@ -130,12 +116,10 @@ class NotasFiscaisETL:
             
             self.logger.info(f"Extracted {len(raw_data)} records from source database")
             
-            # Transform  
             self.logger.info("Starting data transformation...")
             transformed_data = self.transform_data(raw_data)
             self.logger.info(f"Transformed {len(transformed_data)} records")
             
-            # Load
             self.logger.info("Starting data load...")
             self.load_data(transformed_data)
             

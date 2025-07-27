@@ -49,19 +49,19 @@ def download_specific_xmls(nfe_keys: list, download_folder: str = r"G:\Meu Drive
     return downloader.download_specific_keys(nfe_keys)
 
 if __name__ == "__main__":
-    # Example: Run vendas daily ETL for today
-    today = date.today().strftime('%Y-%m-%d')
-    print(f"Running vendas daily ETL for {today}")
-    run_vendas_daily_etl(today)
+    # # Example: Run vendas daily ETL for today
+    # today = date.today().strftime('%Y-%m-%d')
+    # print(f"Running vendas daily ETL for {today}")
+    # run_vendas_daily_etl(today)
     
-    # Example: Run notas fiscais ETL for current month
-    current_month = date.today().replace(day=1).strftime('%Y-%m-%d')
-    print(f"Running notas fiscais ETL from {current_month} onwards")
-    run_notas_fiscais_etl(current_month)
+    # # Example: Run notas fiscais ETL for current month
+    # current_month = date.today().replace(day=1).strftime('%Y-%m-%d')
+    # print(f"Running notas fiscais ETL from {current_month} onwards")
+    run_notas_fiscais_etl()
     
-    # Example: Run XML download for pending NFes
-    print("Running XML download for pending NFes...")
-    stats = run_xml_download()
-    print(f"Download completed: {stats}")
+    # # Example: Run XML download for pending NFes
+    # print("Running XML download for pending NFes...")
+    # stats = run_xml_download()
+    # print(f"Download completed: {stats}")
 
 

@@ -34,21 +34,40 @@ class NotasFiscaisETL:
             
             df['arquivo_xml_text'] = None
             
-            df['processed'] = df['processed'].astype(str).str.lower()
+            # Convert data types according to new table schema
+            self.logger.debug("Converting data types according to table schema...")
             
-            if 'data_inclusao' in df.columns:
-                df['data_inclusao'] = df['data_inclusao'].astype(str)
-                df.loc[df['data_inclusao'].str.contains('NaT|nat|NaN|nan', case=False, na=False), 'data_inclusao'] = None
-                df.loc[df['data_inclusao'] == 'None', 'data_inclusao'] = None
-            
-            text_columns = ['id_uniplus', 'data_emissao', 'fornecedor', 'cpnj_cpf', 'valor',
-                           'vencimento', 'situacao', 'manifestacao', 'status', 'chave', 
-                           'data_inclusao', 'processed', 'arquivo_xml_text']
-            
+            # TEXT columns - keep as string
+            text_columns = ['id_uniplus', 'fornecedor', 'cpnj_cpf', 'situacao', 'manifestacao', 'status', 'chave', 'processed', 'arquivo_xml_text']
             for col in text_columns:
                 if col in df.columns:
                     df[col] = df[col].astype(str)
                     df.loc[df[col] == 'None', col] = None
+            
+            # Ensure processed is lowercase
+            df['processed'] = df['processed'].str.lower()
+            
+            # TIMESTAMP columns (data_emissao, data_inclusao)
+            timestamp_columns = ['data_emissao', 'data_inclusao']
+            for col in timestamp_columns:
+                if col in df.columns:
+                    df[col] = df[col].astype(str)
+                    # Replace NaT/None values
+                    df.loc[df[col].str.contains('NaT|nat|NaN|nan|None', case=False, na=False), col] = None
+                    # Convert to datetime (pandas will handle the conversion to timestamp)
+                    df[col] = pd.to_datetime(df[col], errors='coerce')
+            
+            # DATE column (vencimento)
+            if 'vencimento' in df.columns:
+                df['vencimento'] = df['vencimento'].astype(str)
+                df.loc[df['vencimento'].str.contains('NaT|nat|NaN|nan|None', case=False, na=False), 'vencimento'] = None
+                df['vencimento'] = pd.to_datetime(df['vencimento'], errors='coerce').dt.date
+            
+            # NUMERIC column (valor)
+            if 'valor' in df.columns:
+                df['valor'] = df['valor'].astype(str)
+                df.loc[df['valor'].str.contains('NaT|nat|NaN|nan|None', case=False, na=False), 'valor'] = None
+                df['valor'] = pd.to_numeric(df['valor'], errors='coerce')
             
             columns = [
                 'id_uniplus', 'data_emissao', 'fornecedor', 'cpnj_cpf', 'valor',

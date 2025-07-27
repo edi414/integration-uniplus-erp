@@ -28,11 +28,6 @@ def run_notas_fiscais_etl(date_filter: str = None):
     etl.run_etl(date_filter)
 
 def run_xml_download(download_folder: str = r"G:\Meu Drive"):
-    """
-    Run the XML download process for pending NFes
-    Args:
-        download_folder: Local folder path to save XML files
-    """
     target_config = get_target_config()  # BANCO_MERCADO (cloud)
     downloader = XMLDownloaderService(target_config, download_folder)
     return downloader.run_xml_download()
@@ -57,11 +52,10 @@ if __name__ == "__main__":
     # # Example: Run notas fiscais ETL for current month
     # current_month = date.today().replace(day=1).strftime('%Y-%m-%d')
     # print(f"Running notas fiscais ETL from {current_month} onwards")
-    run_notas_fiscais_etl()
+    # run_notas_fiscais_etl()
     
-    # # Example: Run XML download for pending NFes
-    # print("Running XML download for pending NFes...")
-    # stats = run_xml_download()
+
+    stats = run_xml_download()
     # print(f"Download completed: {stats}")
 
 

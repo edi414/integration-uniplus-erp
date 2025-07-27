@@ -41,6 +41,15 @@ class NotasFiscaisETL:
                 df.loc[df['data_inclusao'].str.contains('NaT|nat|NaN|nan', case=False, na=False), 'data_inclusao'] = None
                 df.loc[df['data_inclusao'] == 'None', 'data_inclusao'] = None
             
+            text_columns = ['id_uniplus', 'data_emissao', 'fornecedor', 'cpnj_cpf', 'valor',
+                           'vencimento', 'situacao', 'manifestacao', 'status', 'chave', 
+                           'data_inclusao', 'processed', 'arquivo_xml_text']
+            
+            for col in text_columns:
+                if col in df.columns:
+                    df[col] = df[col].astype(str)
+                    df.loc[df[col] == 'None', col] = None
+            
             columns = [
                 'id_uniplus', 'data_emissao', 'fornecedor', 'cpnj_cpf', 'valor',
                 'vencimento', 'situacao', 'manifestacao', 'status', 'chave',

@@ -4,6 +4,7 @@ import psycopg2
 from psycopg2.extras import execute_values
 import pandas as pd
 from typing import Dict, List, Union, Optional
+from tqdm import tqdm
 from .log_handler import setup_logger
 
 class DatabaseConnection:
@@ -117,10 +118,13 @@ class DatabaseConnection:
                     VALUES %s
                 """
                 
-                # Execute in batches
-                for i in range(0, len(values), batch_size):
-                    batch = values[i:i + batch_size]
-                    execute_values(cursor, query, batch)
+                # Execute in batches with progress bar
+                total_batches = (len(values) + batch_size - 1) // batch_size
+                with tqdm(total=total_batches, desc="Inserting batches") as pbar:
+                    for i in range(0, len(values), batch_size):
+                        batch = values[i:i + batch_size]
+                        execute_values(cursor, query, batch)
+                        pbar.update(1)
                     
                 self.connection.commit()
                 self.logger.info(f"Successfully inserted {len(data)} records into {schema}.{table_name}")

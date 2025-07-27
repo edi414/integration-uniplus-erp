@@ -34,26 +34,26 @@ class NotasFiscaisETL:
             
             df['arquivo_xml_text'] = None
             
-            # Convert data types according to new table schema
-            self.logger.debug("Converting data types according to table schema...")
+            if 'data_inclusao' in df.columns:
+                df['data_inclusao'] = df['data_inclusao'].astype(str)
+                df.loc[df['data_inclusao'].str.contains('NaT|nat|NaN|nan|None', case=False, na=False), 'data_inclusao'] = None
+                df.loc[df['data_inclusao'] == 'None', 'data_inclusao'] = None
+                df.loc[df['data_inclusao'] == 'nan', 'data_inclusao'] = None
+                df.loc[df['data_inclusao'] == 'NaT', 'data_inclusao'] = None
             
-            # FIRST: Clean ALL NaT values from entire DataFrame (same as data_inclusao treatment)
-            self.logger.debug("Cleaning NaT values from all columns...")
-            for col in df.columns:
-                if col in df.columns:
-                    df[col] = df[col].astype(str)
-                    df.loc[df[col].str.contains('NaT|nat|NaN|nan', case=False, na=False), col] = None
-                    df.loc[df[col] == 'None', col] = None
+            if 'vencimento' in df.columns:
+                df['vencimento'] = df['vencimento'].astype(str)
+                df.loc[df['vencimento'].str.contains('NaT|nat|NaN|nan|None', case=False, na=False), 'vencimento'] = None
+                df.loc[df['vencimento'] == 'None', 'vencimento'] = None
+                df.loc[df['vencimento'] == 'nan', 'vencimento'] = None
+                df.loc[df['vencimento'] == 'NaT', 'vencimento'] = None
             
-            # NOW: Convert to proper types safely
-            
-            # TEXT columns - keep as string  
             text_columns = ['id_uniplus', 'fornecedor', 'cpnj_cpf', 'situacao', 'manifestacao', 'status', 'chave', 'processed', 'arquivo_xml_text']
             for col in text_columns:
-                if col in df.columns and df[col].dtype != 'object':
+                if col in df.columns:
                     df[col] = df[col].astype(str)
+                    df.loc[df[col] == 'None', col] = None
             
-            # Ensure processed is lowercase
             if 'processed' in df.columns:
                 df['processed'] = df['processed'].str.lower()
             

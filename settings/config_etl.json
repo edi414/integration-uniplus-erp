@@ -2,9 +2,10 @@
     "vendas_daily": {
         "database": "banco_mercado",
         "schema": "public",
-        "table": "fato_vendas_diarias",
+        "table": "uniplus_vendas_pdvs",
         "query_file": "vendas_daily.sql",
-        "logic_check_missing_dates": ["data_venda"]
+        "missing_dates_query": "vendas_daily_missing_dates.sql",
+        "logic_check_missing_dates": ["emissao"]
     },
     
     "icms_daily": {
@@ -45,6 +46,14 @@
         "table": "report_uniplus_notas_fiscais",
         "query_file": "notas_fiscais.sql",
         "logic_check_missing_dates": ["data_emissao"]
+    },
+
+    "catalogo": {
+        "database": "banco_mercado",
+        "schema": "public",
+        "table": "catalogo",
+        "query_file": "catalogo.sql",
+        "logic_check_missing_dates": []
     },
 
     "xml_downloader": {

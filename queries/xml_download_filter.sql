@@ -10,8 +10,8 @@ WITH nfes AS (
     WHERE p.chave_nfe IS NULL
       AND runf.situacao = 'autorizada'
       AND runf.status NOT IN ('entrada_fornecedor', 'cancelada_pelo_fornecedor')
-    ORDER BY runf.data_emissao DESC
+      and data_emissao >= current_date - INTERVAL '60 days'
+    ORDER BY runf.data_emissao desc
 )
 SELECT DISTINCT chave 
 FROM nfes 
-WHERE data_emissao >= current_date - INTERVAL '60 days';

@@ -13,11 +13,13 @@ integration-uniplus-erp/
 ├── queries/            # Arquivos SQL organizados
 │   ├── vendas_daily.sql
 │   ├── notas_fiscais.sql
+│   ├── catalogo.sql
 │   ├── icms_daily.sql
 │   └── ...
 ├── services/           # Serviços ETL
 │   ├── vendas_daily.py
 │   ├── notas_fiscais.py
+│   ├── catalogo.py
 │   └── ...
 ├── settings/           # Configurações
 │   ├── config_etl.json # Configurações dos ETLs
@@ -56,6 +58,37 @@ target_config = get_target_config()  # Banco destino
 # Executar ETL
 etl = NotasFiscaisETL(source_config, target_config)
 etl.run_etl('2024-01-01')  # A partir de uma data específica
+```
+
+### 3. Executar ETL de Catálogo:
+```python
+from services.catalogo import CatalogoETL
+from settings.db_config import get_source_config, get_target_config
+
+# Configurar conexões
+source_config = get_source_config()  # Banco local
+target_config = get_target_config()  # Banco destino
+
+# Executar ETL
+etl = CatalogoETL(source_config, target_config)
+etl.run_etl()  # Sincroniza todos os produtos ativos
+```
+
+### 4. Executar ETL de Vendas (automático):
+```python
+from main import run_vendas_daily_etl
+
+# O ETL sempre processa automaticamente as datas faltantes
+# baseado na tabela company_schedule usando UPSERT
+summary = run_vendas_daily_etl()
+print(f"Processadas: {summary['processed']}, Falharam: {summary['failed']}")
+
+# Exibe detalhes das datas processadas
+for date in summary['dates']['processed']:
+    print(f"✅ {date}")
+    
+for failed in summary['dates']['failed']:
+    print(f"❌ {failed['date']}: {failed['error']}")
 ```
 
 ## 📝 Adicionando novos ETLs

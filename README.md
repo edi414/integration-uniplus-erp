@@ -14,12 +14,14 @@ integration-uniplus-erp/
 │   ├── vendas_daily.sql
 │   ├── notas_fiscais.sql
 │   ├── catalogo.sql
+│   ├── contas_a_pagar.sql
 │   ├── icms_daily.sql
 │   └── ...
 ├── services/           # Serviços ETL
 │   ├── vendas_daily.py
 │   ├── notas_fiscais.py
 │   ├── catalogo.py
+│   ├── contas_a_pagar.py
 │   └── ...
 ├── settings/           # Configurações
 │   ├── config_etl.json # Configurações dos ETLs
@@ -89,6 +91,16 @@ for date in summary['dates']['processed']:
     
 for failed in summary['dates']['failed']:
     print(f"❌ {failed['date']}: {failed['error']}")
+```
+
+### 5. Executar ETL de Contas a Pagar (com UPSERT):
+```python
+from main import run_contas_a_pagar_etl
+
+# O ETL sincroniza todas as contas a pagar usando UPSERT
+# para evitar duplicatas e manter dados atualizados
+summary = run_contas_a_pagar_etl()
+print(f"Registros processados: {summary['processed']}")
 ```
 
 ## 📝 Adicionando novos ETLs

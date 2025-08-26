@@ -3,6 +3,7 @@ from services.vendas_daily import VendasDailyETL
 from services.notas_fiscais import NotasFiscaisETL
 from services.catalogo import CatalogoETL
 from services.xml_downloader import XMLDownloaderService
+from services.contas_a_pagar import ContasAPagarETL
 from settings.db_config import get_source_config, get_target_config
 from datetime import datetime, date
 
@@ -39,37 +40,36 @@ def run_catalogo_etl():
     etl = CatalogoETL(source_config, target_config)
     etl.run_etl()
 
+def run_contas_a_pagar_etl():
+    """
+    Executa o ETL de contas a pagar (com UPSERT)
+    """
+    source_config = get_source_config()
+    target_config = get_target_config()
+    etl = ContasAPagarETL(source_config, target_config)
+    return etl.run_etl()
+
 def run_xml_download(download_folder: str = r"G:\Meu Drive"):
     target_config = get_target_config()
     downloader = XMLDownloaderService(target_config, download_folder)
     return downloader.run_xml_download()
 
-def download_specific_xmls(nfe_keys: list, download_folder: str = r"G:\Meu Drive"):
-    """
-    Download XMLs for specific NFe keys
-    Args:
-        nfe_keys: List of NFe keys to download
-        download_folder: Local folder path to save XML files
-    """
-    target_config = get_target_config()
-    downloader = XMLDownloaderService(target_config, download_folder)
-    return downloader.download_specific_keys(nfe_keys)
-
 if __name__ == "__main__":
-    # # Example: Run vendas daily ETL (processes all missing dates)
-    # print("Running vendas daily ETL for missing dates...")
-    # summary = run_vendas_daily_etl()
-    # print(f"Processed: {summary['processed']}, Failed: {summary['failed']}")
-    
-    # # Example: Run notas fiscais ETL for current month
-    # current_month = date.today().replace(day=1).strftime('%Y-%m-%d')
-    # print(f"Running notas fiscais ETL from {current_month} onwards")
-    # run_notas_fiscais_etl()
-    
-    # # Example: Run catalogo ETL to sync all active products
-    # print("Running catalogo ETL to sync product catalog")
-    # run_catalogo_etl()
 
-    # stats = run_xml_download()
+    print("Running vendas daily ETL for missing dates...")
+    summary = run_vendas_daily_etl()
+    print(f"Processed: {summary['processed']}, Failed: {summary['failed']}")
     
-    pass
+    print(f"Running notas fiscais ETL")
+    run_notas_fiscais_etl()
+    
+    print("Running catalogo ETL to sync product catalog")
+    run_catalogo_etl()
+
+    print("Running contas a pagar ETL")
+    cap_summary = run_contas_a_pagar_etl()
+    print(f"Registros processados (contas_a_pagar): {cap_summary['processed']}")
+
+    print("Running XML download")
+    stats = run_xml_download()
+    print(f"Downloaded: {stats['downloaded']}, Failed: {stats['failed']}")

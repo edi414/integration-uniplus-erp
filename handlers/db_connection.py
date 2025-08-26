@@ -138,46 +138,57 @@ class DatabaseConnection:
             self.disconnect()
             
     def upsert(self, table_name: str, data: Union[pd.DataFrame, Dict], 
-               unique_columns: List[str], schema: str = 'public') -> None:
+               unique_columns: List[str], schema: str = 'public', batch_size: int = 1000) -> None:
         """
-        Perform an upsert operation (INSERT ... ON CONFLICT DO UPDATE).
+        Perform an upsert operation (INSERT ... ON CONFLICT DO UPDATE) in batches.
         
         Args:
             table_name: Name of the target table
             data: DataFrame or dictionary containing data
             unique_columns: List of columns that form the unique constraint
             schema: Database schema name
+            batch_size: Number of records per batch
         """
         if isinstance(data, pd.DataFrame):
             data = data.to_dict('records')
         elif isinstance(data, dict):
             data = [data]
             
+        if not data:
+            self.logger.warning("No data provided for upsert")
+            return
+            
         try:
             self.connect()
             with self.connection.cursor() as cursor:
-                for record in data:
-                    columns = list(record.keys())
-                    values = list(record.values())
-                    placeholders = ','.join(['%s'] * len(values))
-                    
-                    # Build the ON CONFLICT clause
-                    conflict_columns = ','.join(unique_columns)
-                    update_columns = [col for col in columns if col not in unique_columns]
-                    update_set = ','.join([f"{col} = EXCLUDED.{col}" for col in update_columns])
-                    
-                    query = f"""
-                        INSERT INTO {schema}.{table_name} 
-                        ({','.join(columns)}) 
-                        VALUES ({placeholders})
-                        ON CONFLICT ({conflict_columns})
-                        DO UPDATE SET {update_set}
-                    """
-                    
-                    cursor.execute(query, values)
+                # Get column names from first record
+                columns = list(data[0].keys())
+                values = [tuple(record[col] for col in columns) for record in data]
+                
+                # Build the ON CONFLICT clause
+                conflict_columns = ','.join(unique_columns)
+                update_columns = [col for col in columns if col not in unique_columns]
+                update_set = ','.join([f"{col} = EXCLUDED.{col}" for col in update_columns])
+                
+                # Prepare the query
+                query = f"""
+                    INSERT INTO {schema}.{table_name} 
+                    ({','.join(columns)}) 
+                    VALUES %s
+                    ON CONFLICT ({conflict_columns})
+                    DO UPDATE SET {update_set}
+                """
+                
+                # Execute in batches with progress bar
+                total_batches = (len(values) + batch_size - 1) // batch_size
+                with tqdm(total=total_batches, desc="Upserting batches") as pbar:
+                    for i in range(0, len(values), batch_size):
+                        batch = values[i:i + batch_size]
+                        execute_values(cursor, query, batch)
+                        pbar.update(1)
                     
                 self.connection.commit()
-                self.logger.info(f"Successfully upserted records into {schema}.{table_name}")
+                self.logger.info(f"Successfully upserted {len(data)} records into {schema}.{table_name}")
                 
         except Exception as e:
             self.logger.error(f"Error in upsert operation: {e}")

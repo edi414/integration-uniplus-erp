@@ -74,7 +74,7 @@ etl = CatalogoETL(source_config, target_config)
 etl.run_etl()  # Sincroniza todos os produtos ativos
 ```
 
-### 4. Executar ETL de Vendas (automático):
+### 4. Executar ETL de Vendas (automático com UPSERT):
 ```python
 from main import run_vendas_daily_etl
 

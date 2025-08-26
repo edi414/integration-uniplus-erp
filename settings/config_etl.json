@@ -5,9 +5,19 @@
         "table": "uniplus_vendas_pdvs",
         "query_file": "vendas_daily.sql",
         "missing_dates_query": "vendas_daily_missing_dates.sql",
+        "unique_columns": ["emissao", "hora", "documento", "v_liquido"],
         "logic_check_missing_dates": ["emissao"]
     },
     
+    "contas_a_pagar": {
+        "database": "banco_mercado",
+        "schema": "public",
+        "table": "contas_a_pagar",
+        "query_file": "contas_a_pagar.sql",
+        "unique_columns": ["tipo", "documento", "id_origem", "parcela", "vencimento_original", "registro"],
+        "logic_check_missing_dates": []
+    },
+
     "icms_daily": {
         "database": "banco_mercado",
         "schema": "public", 

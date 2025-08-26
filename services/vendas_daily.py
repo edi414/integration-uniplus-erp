@@ -1,6 +1,6 @@
 import pandas as pd
 from handlers.db_connection import DatabaseConnection
-from handlers.query_loader import get_etl_query, get_etl_config
+from handlers.query_loader import get_etl_query, get_etl_config, load_query_from_file
 from handlers.log_handler import setup_logger
 from typing import Dict, Optional
 
@@ -83,11 +83,27 @@ class VendasDailyETL:
                 return []
             
             # Load the missing dates query
-            from handlers.query_loader import load_query_from_file
             query = load_query_from_file(missing_dates_query)
             
             result = self.target_connection.get_data(query)
-            dates = result['date'].dt.strftime('%Y-%m-%d').tolist() if not result.empty else []
+            if result.empty:
+                return []
+            
+            # Convert to datetime if needed and format as string
+            date_column = result.iloc[:, 0]
+            if date_column.dtype == 'object':
+                # Try to convert to datetime first
+                date_column = pd.to_datetime(date_column, errors='coerce')
+            
+            # Convert to string format YYYY-MM-DD
+            if hasattr(date_column, 'dt'):
+                dates = date_column.dt.strftime('%Y-%m-%d').tolist()
+            else:
+                # Already strings, just convert to list
+                dates = date_column.astype(str).tolist()
+            
+            # Remove any NaT or None values
+            dates = [date for date in dates if date and date != 'NaT']
             
             self.logger.info(f"Found {len(dates)} missing dates to process")
             return dates
@@ -105,42 +121,28 @@ class VendasDailyETL:
 
     def load_data(self, df: pd.DataFrame, date: str) -> None:
         """
-        Load transformed data into target table using date-based UPSERT strategy
+        Load transformed data into target table using UPSERT
         """
         config = get_etl_config('vendas_daily')
         table_name = config.get('table', 'uniplus_vendas_pdvs')
         schema = config.get('schema', 'public')
+        unique_columns = config.get('unique_columns', ['emissao', 'hora', 'documento', 'v_liquido'])
         
         try:
-            self.target_connection.connect()
+            self.logger.info(f"Starting UPSERT for {len(df)} records on date {date}")
             
-            with self.target_connection.connection.cursor() as cursor:
-                # Clear existing data for the specific date (UPSERT strategy)
-                cursor.execute(f"DELETE FROM {schema}.{table_name} WHERE emissao = %s", (date,))
-                deleted_count = cursor.rowcount
-                self.target_connection.connection.commit()
-                
-                self.logger.info(f"Cleared {deleted_count} existing records for date {date}")
-                
-            self.target_connection.disconnect()
-            
-            # Insert new data using the standard batch insert
-            self.target_connection.insert_batch(
+            # Use existing upsert method with the constraint that already exists
+            self.target_connection.upsert(
                 table_name=table_name,
                 data=df,
+                unique_columns=unique_columns,
                 schema=schema
             )
             
-            self.logger.info(f"UPSERT completed: {len(df)} records loaded for date {date}")
+            self.logger.info(f"UPSERT completed: {len(df)} records processed for date {date}")
             
         except Exception as e:
             self.logger.error(f"Error during UPSERT for date {date}: {str(e)}")
-            # Ensure connection is closed on error
-            try:
-                if self.target_connection.connection and not self.target_connection.connection.closed:
-                    self.target_connection.disconnect()
-            except:
-                pass
             raise
 
     def _process_single_date(self, date: str) -> None:
@@ -213,13 +215,3 @@ class VendasDailyETL:
         except Exception as e:
             self.logger.error(f"ETL process failed: {str(e)}")
             raise
-
-
-
-
-
-
-
-
-
-

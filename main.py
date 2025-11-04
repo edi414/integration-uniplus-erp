@@ -67,24 +67,24 @@ def run_xml_download(download_folder: str = r"G:\Meu Drive"):
 
 if __name__ == "__main__":
 
-    # print("Running vendas daily ETL for missing dates...")
-    # summary = run_vendas_daily_etl()
-    # print(f"Processed: {summary['processed']}, Failed: {summary['failed']}")
+    print("Running vendas daily ETL for missing dates...")
+    summary = run_vendas_daily_etl()
+    print(f"Processed: {summary['processed']}, Failed: {summary['failed']}")
     
-    # print(f"Running notas fiscais ETL")
-    # run_notas_fiscais_etl()
+    print(f"Running notas fiscais ETL")
+    run_notas_fiscais_etl()
     
-    # print("Running catalogo ETL to sync product catalog")
-    # run_catalogo_etl()
+    print("Running catalogo ETL to sync product catalog")
+    run_catalogo_etl()
 
-    # print("Running contas a pagar ETL")
-    # cap_summary = run_contas_a_pagar_etl()
-    # print(f"Registros processados (contas_a_pagar): {cap_summary['processed']}")
+    print("Running contas a pagar ETL")
+    cap_summary = run_contas_a_pagar_etl()
+    print(f"Registros processados (contas_a_pagar): {cap_summary['processed']}")
 
     print("Running movimentacao estoque ETL for missing dates...")
     estoque_summary = run_movimentacao_estoque_etl()
     print(f"Processed: {estoque_summary['processed']}, Failed: {estoque_summary['failed']}")
 
-    # print("Running XML download")
-    # stats = run_xml_download()
-    # print(f"Downloaded: {stats['downloaded']}, Failed: {stats['failed']}")
+    print("Running XML download")
+    stats = run_xml_download()
+    print(f"Downloaded: {stats['downloaded']}, Failed: {stats['failed']}")

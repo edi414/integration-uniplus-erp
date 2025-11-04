@@ -4,6 +4,7 @@ from services.notas_fiscais import NotasFiscaisETL
 from services.catalogo import CatalogoETL
 from services.xml_downloader import XMLDownloaderService
 from services.contas_a_pagar import ContasAPagarETL
+from services.movimentacao_estoque import MovimentacaoEstoqueETL
 from settings.db_config import get_source_config, get_target_config
 from datetime import datetime, date
 
@@ -49,6 +50,16 @@ def run_contas_a_pagar_etl():
     etl = ContasAPagarETL(source_config, target_config)
     return etl.run_etl()
 
+def run_movimentacao_estoque_etl():
+    """
+    Executa o ETL de movimentação de estoque para datas faltantes
+    Processa automaticamente as datas faltantes baseado na tabela company_schedule usando UPSERT
+    """
+    source_config = get_source_config()
+    target_config = get_target_config()
+    etl = MovimentacaoEstoqueETL(source_config, target_config)
+    return etl.run_etl()
+
 def run_xml_download(download_folder: str = r"G:\Meu Drive"):
     target_config = get_target_config()
     downloader = XMLDownloaderService(target_config, download_folder)
@@ -56,20 +67,24 @@ def run_xml_download(download_folder: str = r"G:\Meu Drive"):
 
 if __name__ == "__main__":
 
-    print("Running vendas daily ETL for missing dates...")
-    summary = run_vendas_daily_etl()
-    print(f"Processed: {summary['processed']}, Failed: {summary['failed']}")
+    # print("Running vendas daily ETL for missing dates...")
+    # summary = run_vendas_daily_etl()
+    # print(f"Processed: {summary['processed']}, Failed: {summary['failed']}")
     
-    print(f"Running notas fiscais ETL")
-    run_notas_fiscais_etl()
+    # print(f"Running notas fiscais ETL")
+    # run_notas_fiscais_etl()
     
-    print("Running catalogo ETL to sync product catalog")
-    run_catalogo_etl()
+    # print("Running catalogo ETL to sync product catalog")
+    # run_catalogo_etl()
 
-    print("Running contas a pagar ETL")
-    cap_summary = run_contas_a_pagar_etl()
-    print(f"Registros processados (contas_a_pagar): {cap_summary['processed']}")
+    # print("Running contas a pagar ETL")
+    # cap_summary = run_contas_a_pagar_etl()
+    # print(f"Registros processados (contas_a_pagar): {cap_summary['processed']}")
 
-    print("Running XML download")
-    stats = run_xml_download()
-    print(f"Downloaded: {stats['downloaded']}, Failed: {stats['failed']}")
+    print("Running movimentacao estoque ETL for missing dates...")
+    estoque_summary = run_movimentacao_estoque_etl()
+    print(f"Processed: {estoque_summary['processed']}, Failed: {estoque_summary['failed']}")
+
+    # print("Running XML download")
+    # stats = run_xml_download()
+    # print(f"Downloaded: {stats['downloaded']}, Failed: {stats['failed']}")

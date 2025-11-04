@@ -18,6 +18,16 @@
         "logic_check_missing_dates": []
     },
 
+    "movimentacao_estoque": {
+        "database": "banco_mercado",
+        "schema": "public",
+        "table": "movimentacao_estoque",
+        "query_file": "movimentacao_estoque.sql",
+        "missing_dates_query": "movimentacao_estoque_missing_dates.sql",
+        "unique_columns": ["datahora", "codigo", "documento", "tipodocumento", "tipo_movimentacao", "currenttimemillis"],
+        "logic_check_missing_dates": ["datahora"]
+    },
+
     "icms_daily": {
         "database": "banco_mercado",
         "schema": "public", 

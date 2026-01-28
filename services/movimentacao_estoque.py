@@ -29,7 +29,20 @@ class MovimentacaoEstoqueETL:
                 df["tipodocumento"] = pd.to_numeric(df["tipodocumento"], errors="coerce").astype("Int64")
             
             # Campos numéricos
-            numeric_columns = ["qtd", "valortotal"]
+            numeric_columns = [
+                "qtd", 
+                "valortotal", 
+                "precoultimacompra", 
+                "custoaquisicao", 
+                "customedio",
+                "icms",
+                "icms_st",
+                "ippt",
+                "pis_cofins",
+                "ipi",
+                "outros_impostos",
+                "comissao"
+            ]
             for col in numeric_columns:
                 if col in df.columns:
                     df[col] = pd.to_numeric(df[col], errors="coerce")
@@ -46,6 +59,7 @@ class MovimentacaoEstoqueETL:
                 "un",
                 "tipo_movimentacao",
                 "nome",
+                "cfop",
             ]
             for col in text_columns:
                 if col in df.columns:
@@ -63,14 +77,25 @@ class MovimentacaoEstoqueETL:
                 "filial",
                 "documento",
                 "codigo",
+                "nome",
                 "datahora",
                 "currenttimemillis",
                 "tipodocumento",
                 "qtd",
-                "valortotal",
-                "un",
                 "tipo_movimentacao",
-                "nome",
+                "valortotal",
+                "precoultimacompra",
+                "custoaquisicao",
+                "customedio",
+                "icms",
+                "icms_st",
+                "ippt",
+                "pis_cofins",
+                "ipi",
+                "outros_impostos",
+                "comissao",
+                "cfop",
+                "un",
             ]
             
             existing_columns = [c for c in columns if c in df.columns]

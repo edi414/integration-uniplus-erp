@@ -1,0 +1,13 @@
+[project]
+name = "integration-uniplus-erp"
+version = "0.1.0"
+requires-python = ">=3.13"
+dependencies = [
+    "pandas>=3.0.1",
+    "psycopg2-binary>=2.9.11",
+    "pymysql>=1.1.2",
+    "python-dotenv>=1.2.2",
+    "redis>=7.3.0",
+    "requests>=2.32.5",
+    "tqdm>=4.67.3",
+]

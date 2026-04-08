@@ -1,6 +1,11 @@
 SELECT 
     '1' AS filial,
-    ec.nome AS pdv,
+    CASE ec.nome
+        WHEN 'CAIXA001' THEN 1
+        WHEN 'CAIXA002' THEN 2
+        WHEN 'CAIXA003' THEN 3
+        ELSE 0
+    END AS pdv,
     evc.id_ecf_movimento,
     evc.ccf,
     evc.data_venda AS emissao,
@@ -9,7 +14,7 @@ SELECT
     evc.desconto,
     evc.acrescimo,
     evc.valor_final AS v_liquida,
-    evc.cupom_cancelado AS canc,
+    CASE WHEN evc.cupom_cancelado = 'S' THEN 1 ELSE 0 END AS canc,
     evc.nome_cliente AS cliente,
     evc.cpf_cnpj_cliente AS cnpj_cpf,
     evc.status_nfce,

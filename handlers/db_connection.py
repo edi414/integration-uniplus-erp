@@ -93,11 +93,8 @@ class DatabaseConnection:
             self.connect()
             cursor = self.connection.cursor()
             try:
-                # Convert %(param)s to %s for MySQL if necessary
-                # Actually mysql-connector supports %s and pyformat is also common
+                # Use named parameters directly (pyformat) which is supported by both psycopg2 and mysql-connector
                 processed_query = query
-                if self.engine == 'mysql':
-                    processed_query = query.replace('%(', '%').replace(')s', 's')
                 
                 cursor.execute(processed_query, params)
                 

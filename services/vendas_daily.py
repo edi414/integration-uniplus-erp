@@ -1,5 +1,6 @@
 import pandas as pd
 from handlers.db_connection import DatabaseConnection
+from utils.data_transformers import clean_dataframe_nans
 from handlers.query_loader import get_etl_query, get_etl_config, load_query_from_file
 from handlers.log_handler import setup_logger
 from typing import Dict, Optional
@@ -27,28 +28,25 @@ class VendasDailyETL:
             'serie/numero': 'documento',
             'cliente': 'cliente',
             'cnpj_cpf': 'cnpj_cpf',
-            'ccf': 'ccf'
+            'ccf': 'ccf',
+            'status_nfce': 'status_nfce',
+            'valor_recebido': 'valor_recebido'
         }
         
         # Rename columns
         df = df.rename(columns=column_mapping)
         
-        # Transform cancelado from 0/1 or N/S to Não/Sim
-        if df['canc'].dtype == 'object':
-            df['canc'] = df['canc'].map({'S': 'Sim', 'N': 'Não', '0': 'Não', '1': 'Sim', 'Sim': 'Sim', 'Não': 'Não'})
-        else:
-            df['canc'] = df['canc'].map({0: 'Não', 1: 'Sim'})
+        # Transform cancelado to boolean (True/False)
+        # Now handled by SQL as 1/0, just ensure it's boolean
+        df['canc'] = df['canc'].astype(bool).fillna(False)
         
         # Add missing columns with default values
-        df['usuario'] = 'SISTEMA' # New query doesn't have user, putting default
-        df['vendedor'] = None
-        df['v_venda'] = df['v_bruto']
         df['devolucao_troca'] = None
-        df['hora_final'] = df['hora'] # Use start time as end time as end time is not provided
+        df['hora_final'] = None # No longer used, loading as NULL
         
         # Convert data types to match target table
         # Numeric columns (18,2)
-        numeric_columns = ['v_bruto', 'desconto', 'acrescimo', 'v_venda', 'v_liquido', 'valor_finalizador', 'troco']
+        numeric_columns = ['v_bruto', 'desconto', 'acrescimo', 'v_liquido', 'valor_finalizador', 'troco', 'valor_recebido']
         for col in numeric_columns:
             if col in df.columns:
                 df[col] = pd.to_numeric(df[col], errors='coerce')
@@ -56,20 +54,28 @@ class VendasDailyETL:
         # Date column
         if 'emissao' in df.columns:
             df['emissao'] = pd.to_datetime(df['emissao'], errors='coerce').dt.date
+            df['emissao'] = df['emissao'].replace({pd.NaT: None})
         
         # Timestamp columns  
         timestamp_columns = ['hora', 'hora_final']
         for col in timestamp_columns:
             if col in df.columns:
                 df[col] = pd.to_datetime(df[col], errors='coerce')
+                df[col] = df[col].replace({pd.NaT: None})
         
         # Ensure all columns are present and in correct order
         columns = [
-            'pdv', 'filial', 'usuario', 'vendedor', 'emissao', 'hora', 'documento', 'ccf',
-            'v_bruto', 'desconto', 'acrescimo', 'v_venda', 'devolucao_troca', 'v_liquido', 'canc', 'cliente',
-            'cnpj_cpf', 'finalizador', 'valor_finalizador', 'hora_final', 'troco'
+            'pdv', 'filial', 'emissao', 'hora', 'documento', 'ccf',
+            'v_bruto', 'desconto', 'acrescimo', 'devolucao_troca', 'v_liquido', 'canc', 'cliente',
+            'cnpj_cpf', 'finalizador', 'valor_finalizador', 'hora_final', 'troco',
+            'status_nfce', 'valor_recebido'
         ]
-        return df[columns]
+        
+        # Replace all NaN (Not a Number) and NaT (Not a Time) with None for NULL in database
+        # By using the centralized utility, we prevent Pandas from converting None back to float NaN
+        result = clean_dataframe_nans(df[columns])
+        
+        return result
 
     def get_missing_dates(self) -> list:
         """

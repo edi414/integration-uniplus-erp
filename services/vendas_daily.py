@@ -14,36 +14,37 @@ class VendasDailyETL:
         column_mapping = {
             'pdv': 'pdv',
             'filial': 'filial',
-            'usuario': 'usuario',
-            'valorbruto': 'v_bruto',
-            'valorliquido': 'v_liquido',
-            'cancelado': 'canc',
-            'finalizador': 'finalizador',
-            'valortotal': 'valor_finalizador',
-            'descontoitem': 'desconto',
-            'acrescimoitem': 'acrescimo',
-            'data': 'emissao',
-            'horainicial': 'hora',
+            'v_bruto': 'v_bruto',
+            'v_liquida': 'v_liquido',
+            'canc': 'canc',
+            'tipo_pagamento_principal': 'finalizador',
+            'maior_valor': 'valor_finalizador',
+            'desconto': 'desconto',
+            'acrescimo': 'acrescimo',
+            'emissao': 'emissao',
+            'hora': 'hora',
             'troco': 'troco',
-            'horafinal': 'hora_final'
+            'serie/numero': 'documento',
+            'cliente': 'cliente',
+            'cnpj_cpf': 'cnpj_cpf',
+            'ccf': 'ccf'
         }
         
         # Rename columns
         df = df.rename(columns=column_mapping)
         
-        # Transform cancelado from 0/1 to Não/Sim
-        df['canc'] = df['canc'].map({0: 'Não', 1: 'Sim'})
-        
-        # Create documento by concatenating serienfce and numeronfce
-        df['documento'] = df['serienfce'].astype(str) + '/' + df['numeronfce'].astype(str)
+        # Transform cancelado from 0/1 or N/S to Não/Sim
+        if df['canc'].dtype == 'object':
+            df['canc'] = df['canc'].map({'S': 'Sim', 'N': 'Não', '0': 'Não', '1': 'Sim', 'Sim': 'Sim', 'Não': 'Não'})
+        else:
+            df['canc'] = df['canc'].map({0: 'Não', 1: 'Sim'})
         
         # Add missing columns with default values
+        df['usuario'] = 'SISTEMA' # New query doesn't have user, putting default
         df['vendedor'] = None
-        df['ccf'] = None
-        df['cliente'] = None
-        df['cnpj_cpf'] = None
         df['v_venda'] = df['v_bruto']
         df['devolucao_troca'] = None
+        df['hora_final'] = df['hora'] # Use start time as end time as end time is not provided
         
         # Convert data types to match target table
         # Numeric columns (18,2)

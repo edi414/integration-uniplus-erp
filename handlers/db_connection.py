@@ -2,6 +2,8 @@ import os
 import json
 import psycopg2
 from psycopg2.extras import execute_values
+import mysql.connector
+from mysql.connector import errorcode
 import pandas as pd
 from typing import Dict, List, Union, Optional
 from tqdm import tqdm
@@ -22,6 +24,8 @@ class DatabaseConnection:
             
         self.connection = None
         self._validate_config()
+        self.engine = 'mysql' if str(self.config.get('port')) == '3306' else 'postgres'
+        self.logger.info(f"Database engine detected: {self.engine}")
         
     def _validate_config(self):
         required_fields = ['host', 'port', 'dbname', 'user', 'password']
@@ -43,17 +47,29 @@ class DatabaseConnection:
     
     def connect(self) -> None:
         try:
-            if not self.connection or self.connection.closed:
-                self.connection = psycopg2.connect(self._get_connection_string())
-                self.logger.info("Database connection established successfully")
+            if not self.connection or (self.engine == 'postgres' and self.connection.closed) or (self.engine == 'mysql' and not self.connection.is_connected()):
+                if self.engine == 'postgres':
+                    self.connection = psycopg2.connect(self._get_connection_string())
+                else:
+                    self.connection = mysql.connector.connect(
+                        host=self.config['host'],
+                        port=self.config['port'],
+                        user=self.config['user'],
+                        password=self.config['password'],
+                        database=self.config['dbname']
+                    )
+                self.logger.info(f"{self.engine.capitalize()} database connection established successfully")
         except Exception as e:
-            self.logger.error(f"Failed to connect to database: {e}")
+            self.logger.error(f"Failed to connect to {self.engine} database: {e}")
             raise
             
     def disconnect(self) -> None:
-        if self.connection and not self.connection.closed:
-            self.connection.close()
-            self.logger.info("Database connection closed")
+        if self.connection:
+            if self.engine == 'postgres' and not self.connection.closed:
+                self.connection.close()
+            elif self.engine == 'mysql' and self.connection.is_connected():
+                self.connection.close()
+            self.logger.info(f"{self.engine.capitalize()} database connection closed")
             
     def __enter__(self):
         self.connect()
@@ -75,11 +91,23 @@ class DatabaseConnection:
         """
         try:
             self.connect()
-            with self.connection.cursor() as cursor:
-                cursor.execute(query, params)
-                columns = [desc[0] for desc in cursor.description]
-                data = cursor.fetchall()
-                return pd.DataFrame(data, columns=columns)
+            cursor = self.connection.cursor()
+            try:
+                # Convert %(param)s to %s for MySQL if necessary
+                # Actually mysql-connector supports %s and pyformat is also common
+                processed_query = query
+                if self.engine == 'mysql':
+                    processed_query = query.replace('%(', '%').replace(')s', 's')
+                
+                cursor.execute(processed_query, params)
+                
+                if cursor.description:
+                    columns = [desc[0] for desc in cursor.description]
+                    data = cursor.fetchall()
+                    return pd.DataFrame(data, columns=columns)
+                return pd.DataFrame()
+            finally:
+                cursor.close()
         except Exception as e:
             self.logger.error(f"Error executing query: {e}")
             raise
@@ -112,19 +140,27 @@ class DatabaseConnection:
                 values = [tuple(record[col] for col in columns) for record in data]
                 
                 # Prepare the query
-                query = f"""
-                    INSERT INTO {schema}.{table_name} 
-                    ({','.join(columns)}) 
-                    VALUES %s
-                """
+                column_names = ','.join(columns)
                 
-                # Execute in batches with progress bar
-                total_batches = (len(values) + batch_size - 1) // batch_size
-                with tqdm(total=total_batches, desc="Inserting batches") as pbar:
-                    for i in range(0, len(values), batch_size):
-                        batch = values[i:i + batch_size]
-                        execute_values(cursor, query, batch)
-                        pbar.update(1)
+                if self.engine == 'postgres':
+                    placeholders = "%s"
+                    query = f"INSERT INTO {schema}.{table_name} ({column_names}) VALUES {placeholders}"
+                    # Execute in batches with progress bar
+                    total_batches = (len(values) + batch_size - 1) // batch_size
+                    with tqdm(total=total_batches, desc="Inserting batches") as pbar:
+                        for i in range(0, len(values), batch_size):
+                            batch = values[i:i + batch_size]
+                            execute_values(cursor, query, batch)
+                            pbar.update(1)
+                else:
+                    placeholders = ', '.join(['%s'] * len(columns))
+                    query = f"INSERT INTO `{table_name}` ({column_names}) VALUES ({placeholders})"
+                    total_batches = (len(values) + batch_size - 1) // batch_size
+                    with tqdm(total=total_batches, desc="Inserting batches") as pbar:
+                        for i in range(0, len(values), batch_size):
+                            batch = values[i:i + batch_size]
+                            cursor.executemany(query, batch)
+                            pbar.update(1)
                     
                 self.connection.commit()
                 self.logger.info(f"Successfully inserted {len(data)} records into {schema}.{table_name}")
@@ -165,27 +201,47 @@ class DatabaseConnection:
                 columns = list(data[0].keys())
                 values = [tuple(record[col] for col in columns) for record in data]
                 
-                # Build the ON CONFLICT clause
-                conflict_columns = ','.join(unique_columns)
-                update_columns = [col for col in columns if col not in unique_columns]
-                update_set = ','.join([f"{col} = EXCLUDED.{col}" for col in update_columns])
-                
-                # Prepare the query
-                query = f"""
-                    INSERT INTO {schema}.{table_name} 
-                    ({','.join(columns)}) 
-                    VALUES %s
-                    ON CONFLICT ({conflict_columns})
-                    DO UPDATE SET {update_set}
-                """
-                
-                # Execute in batches with progress bar
-                total_batches = (len(values) + batch_size - 1) // batch_size
-                with tqdm(total=total_batches, desc="Upserting batches") as pbar:
-                    for i in range(0, len(values), batch_size):
-                        batch = values[i:i + batch_size]
-                        execute_values(cursor, query, batch)
-                        pbar.update(1)
+                if self.engine == 'postgres':
+                    # Build the ON CONFLICT clause
+                    conflict_columns = ','.join(unique_columns)
+                    update_columns = [col for col in columns if col not in unique_columns]
+                    update_set = ','.join([f"{col} = EXCLUDED.{col}" for col in update_columns])
+                    
+                    # Prepare the query
+                    query = f"""
+                        INSERT INTO {schema}.{table_name} 
+                        ({','.join(columns)}) 
+                        VALUES %s
+                        ON CONFLICT ({conflict_columns})
+                        DO UPDATE SET {update_set}
+                    """
+                    
+                    # Execute in batches with progress bar
+                    total_batches = (len(values) + batch_size - 1) // batch_size
+                    with tqdm(total=total_batches, desc="Upserting batches") as pbar:
+                        for i in range(0, len(values), batch_size):
+                            batch = values[i:i + batch_size]
+                            execute_values(cursor, query, batch)
+                            pbar.update(1)
+                else:
+                    # MySQL ON DUPLICATE KEY UPDATE
+                    update_columns = [col for col in columns if col not in unique_columns]
+                    update_set = ','.join([f"`{col}` = VALUES(`{col}`)" for col in update_columns])
+                    placeholders = ', '.join(['%s'] * len(columns))
+                    
+                    query = f"""
+                        INSERT INTO `{table_name}` 
+                        ({','.join([f'`{c}`' for c in columns])}) 
+                        VALUES ({placeholders})
+                        ON DUPLICATE KEY UPDATE {update_set}
+                    """
+                    
+                    total_batches = (len(values) + batch_size - 1) // batch_size
+                    with tqdm(total=total_batches, desc="Upserting batches") as pbar:
+                        for i in range(0, len(values), batch_size):
+                            batch = values[i:i + batch_size]
+                            cursor.executemany(query, batch)
+                            pbar.update(1)
                     
                 self.connection.commit()
                 self.logger.info(f"Successfully upserted {len(data)} records into {schema}.{table_name}")

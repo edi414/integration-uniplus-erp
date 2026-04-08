@@ -1,24 +1,58 @@
-select 
-    m2.id, 
-    m2.data, 
-    m2.filial, 
-    m2.pdv, 
-    u.nome as usuario, 
-    m2.valorbruto, 
-    m2.valorliquido, 
-    m2.cancelado, 
-    m2.serienfce, 
-    m2.numeronfce, 
-    p2.abreviacao as finalizador, 
-    p.troco, 
-    p.valortotal, 
-    m2.descontoitem, 
-    m2.acrescimoitem, 
-    m2.horainicial, 
-    m2.horafinal 
-from operacao m2 
-left join usuario u on u.id::text = m2.usuario 
-left join pagamento p on p.idoperacao = m2.id 
-left join finalizador p2 on p.finalizador = p2.id 
-where m2.data = %(data)s 
-    and m2.tipo = 1 
+SELECT 
+    '1' AS filial,
+    ec.nome AS pdv,
+    evc.id_ecf_movimento,
+    evc.ccf,
+    evc.data_venda AS emissao,
+    evc.hora_venda AS hora,
+    evc.valor_venda AS v_bruto,
+    evc.desconto,
+    evc.acrescimo,
+    evc.valor_final AS v_liquida,
+    evc.cupom_cancelado AS canc,
+    evc.nome_cliente AS cliente,
+    evc.cpf_cnpj_cliente AS cnpj_cpf,
+    evc.status_nfce,
+    evc.valor_recebido,
+    CONCAT(IFNULL(evc.serie_nfce, ''), '/', IFNULL(evc.numero_nfce, '')) AS `serie/numero`,
+    evc.troco,
+    emp.descricao AS tipo_pagamento_principal,
+    ettp_final.maior_valor
+
+FROM ecf_venda_cabecalho evc
+INNER JOIN ecf_caixa ec 
+    ON ec.id = evc.id_ecf_caixa
+
+-- Bloco para encontrar o finalizador predominante
+LEFT JOIN (
+    -- Passo 3: Pegamos o tipo de pagamento que bate com o maior valor
+    SELECT 
+        v1.id_ecf_venda_cabecalho, 
+        v1.id_ecf_caixa, 
+        v1.id_ecf_tipo_pagamento,
+        v2.max_v as maior_valor
+    FROM (
+        -- Passo 1: Soma por tipo de pagamento
+        SELECT id_ecf_venda_cabecalho, id_ecf_caixa, id_ecf_tipo_pagamento, SUM(valor) as soma_tipo
+        FROM ecf_total_tipo_pgto
+        GROUP BY 1, 2, 3
+    ) v1
+    INNER JOIN (
+        -- Passo 2: Descobre o maior valor somado da venda
+        SELECT id_ecf_venda_cabecalho, id_ecf_caixa, MAX(soma_tipo) as max_v
+        FROM (
+            SELECT id_ecf_venda_cabecalho, id_ecf_caixa, id_ecf_tipo_pagamento, SUM(valor) as soma_tipo
+            FROM ecf_total_tipo_pgto
+            GROUP BY 1, 2, 3
+        ) sub
+        GROUP BY 1, 2
+    ) v2 ON v1.id_ecf_venda_cabecalho = v2.id_ecf_venda_cabecalho 
+        AND v1.id_ecf_caixa = v2.id_ecf_caixa 
+        AND v1.soma_tipo = v2.max_v
+    GROUP BY v1.id_ecf_venda_cabecalho, v1.id_ecf_caixa -- Garante uma linha se houver empate
+) ettp_final ON ettp_final.id_ecf_venda_cabecalho = evc.id 
+            AND ettp_final.id_ecf_caixa = evc.id_ecf_caixa
+
+LEFT JOIN ecf_tipo_pagamento emp 
+    ON emp.id = ettp_final.id_ecf_tipo_pagamento
+WHERE evc.data_venda = %(data)s;

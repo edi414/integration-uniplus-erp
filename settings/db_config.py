@@ -7,11 +7,11 @@ load_dotenv()
 
 # Database configuration
 UNICO_DATABASE = {
-    "dbname": os.getenv("UNICO_DB", "unico_db"),
-    "user": os.getenv("UNICO_USER", "unico_user"),
-    "password": os.getenv("UNICO_PASSWORD", "unico_password"),
-    "host": os.getenv("UNICO_HOST", "localhost"),
-    "port": int(os.getenv("UNICO_PORT", "5432")),
+    "dbname": os.getenv("UNICO_DB") or os.getenv("DB") or "unico_db",
+    "user": os.getenv("UNICO_USER") or os.getenv("USER") or "unico_user",
+    "password": os.getenv("UNICO_PASSWORD") or os.getenv("PASSWORD") or "unico_password",
+    "host": os.getenv("UNICO_HOST") or os.getenv("HOST") or "localhost",
+    "port": int(os.getenv("UNICO_PORT") or os.getenv("PORT") or "5432"),
 }
 
 BANCO_MERCADO = {

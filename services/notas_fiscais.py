@@ -3,7 +3,7 @@ import os
 import psycopg2
 import logging
 from handlers.db_connection import DatabaseConnection
-from handlers.query_loader import get_etl_query, get_etl_config
+from handlers.query_loader import get_etl_query, get_etl_config, load_query_from_file
 from handlers.log_handler import setup_logger
 from handlers.nfe_handler import NFeHandler
 from typing import Dict, Optional, List
@@ -81,30 +81,25 @@ class NotasFiscaisETL:
 
     def download_missing_xmls(self) -> None:
         """
-        Busca chaves no Postgres que não possuem XML, mas cujo status_xml indica disponibilidade.
+        Busca chaves no Postgres que não possuem XML, carregando a consulta de arquivo externo.
         """
         try:
             config = get_etl_config('notas_fiscais')
-            table_name = config.get('table', 'report_uniplus_notas_fiscais')
+            table_name = config.get('table', 'notas_fiscais')
             
             self.target_connection.connect()
-            # Regra: arquivo_xml é nulo E status_xml é 'XML Disponível'
-            query = f"""
-                SELECT chave FROM {table_name} 
-                WHERE arquivo_xml IS NULL 
-                  AND status_xml = 'XML Disponível' 
-                LIMIT 30
-            """
+            # Carrega a query externa (xml_download_filter.sql)
+            query = load_query_from_file('xml_download_filter.sql')
             
             with self.target_connection.connection.cursor() as cursor:
                 cursor.execute(query)
                 chaves = [row[0] for row in cursor.fetchall()]
                 
                 if not chaves:
-                    self.logger.info("Nenhuma nota pendente de XML com status 'Disponível' encontrada.")
+                    self.logger.info("Nenhuma nota pendente de XML encontrada conforme filtro SQL.")
                     return
 
-                self.logger.info(f"Identificadas {len(chaves)} notas pendentes de download condicional.")
+                self.logger.info(f"Identificadas {len(chaves)} notas para tentativa de download condicional.")
                 
                 for chave in chaves:
                     self.logger.info(f"Iniciando download SEFAZ para chave: {chave}")
@@ -125,10 +120,10 @@ class NotasFiscaisETL:
     def load_data(self, df: pd.DataFrame) -> None:
         try:
             config = get_etl_config('notas_fiscais')
-            table_name = config.get('table', 'report_uniplus_notas_fiscais')
+            table_name = config.get('table', 'notas_fiscais')
             schema = config.get('schema', 'public')
             
-            self.logger.info(f"Executando UPSERT de {len(df)} registros para manter XMLs existentes.")
+            self.logger.info(f"Executando UPSERT de {len(df)} registros na tabela {table_name}")
             self.target_connection.upsert(
                 table_name=table_name,
                 data=df,

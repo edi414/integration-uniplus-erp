@@ -1,0 +1,337 @@
+<?xml version="1.0" ?>
+<nfeProc xmlns="http://www.portalfiscal.inf.br/nfe" versao="4.00">
+  <NFe xmlns="http://www.portalfiscal.inf.br/nfe">
+    <infNFe Id="NFe26260324150377000195550010059140681363282161" versao="4.00">
+      <ide>
+        <cUF>26</cUF>
+        <cNF>36328216</cNF>
+        <natOp>Venda merc.adq.receb.de terceiros</natOp>
+        <mod>55</mod>
+        <serie>1</serie>
+        <nNF>5914068</nNF>
+        <dhEmi>2026-03-26T23:37:17-03:00</dhEmi>
+        <dhSaiEnt>2026-03-26T23:37:17-03:00</dhSaiEnt>
+        <tpNF>1</tpNF>
+        <idDest>1</idDest>
+        <cMunFG>2611606</cMunFG>
+        <tpImp>1</tpImp>
+        <tpEmis>1</tpEmis>
+        <cDV>1</cDV>
+        <tpAmb>1</tpAmb>
+        <finNFe>1</finNFe>
+        <indFinal>0</indFinal>
+        <indPres>9</indPres>
+        <indIntermed>0</indIntermed>
+        <procEmi>0</procEmi>
+        <verProc>0.1.0</verProc>
+      </ide>
+      <emit>
+        <CNPJ>24150377000195</CNPJ>
+        <xNome>KarneKeijo Logistica Integrada LTDA</xNome>
+        <xFant>KARNE KEIJO LOG INTEGRADA LTDA</xFant>
+        <enderEmit>
+          <xLgr>Rodovia BR - 101 Sul</xLgr>
+          <nro>3700</nro>
+          <xBairro>Barro</xBairro>
+          <cMun>2611606</cMun>
+          <xMun>Recife</xMun>
+          <UF>PE</UF>
+          <CEP>50900400</CEP>
+          <cPais>1058</cPais>
+          <xPais>Brasil</xPais>
+          <fone>8121218899</fone>
+        </enderEmit>
+        <IE>006682227</IE>
+        <CRT>3</CRT>
+      </emit>
+      <dest>
+        <CNPJ>08935303000108</CNPJ>
+        <xNome>EDIVALDO BEZERRA ALVESMERCADO POPULAR</xNome>
+        <enderDest>
+          <xLgr>RUA ANTONIO BELIU</xLgr>
+          <nro>80</nro>
+          <xBairro>CENTRO</xBairro>
+          <cMun>2616001</cMun>
+          <xMun>VENTUROSA</xMun>
+          <UF>PE</UF>
+          <CEP>55270000</CEP>
+          <cPais>1058</cPais>
+          <xPais>Brasil</xPais>
+          <fone>8738331888</fone>
+        </enderDest>
+        <indIEDest>1</indIEDest>
+        <IE>035278838</IE>
+      </dest>
+      <det nItem="1">
+        <prod>
+          <cProd>5574</cProd>
+          <cEAN>SEM GTIN</cEAN>
+          <xProd>BACALHAU SAITHE NORUEGA 16/20 CX25KG</xProd>
+          <NCM>03055310</NCM>
+          <CFOP>5102</CFOP>
+          <uCom>CX</uCom>
+          <qCom>5.0000</qCom>
+          <vUnCom>1325.00</vUnCom>
+          <vProd>6625.00</vProd>
+          <cEANTrib>SEM GTIN</cEANTrib>
+          <uTrib>CX</uTrib>
+          <qTrib>5.0000</qTrib>
+          <vUnTrib>1325.00</vUnTrib>
+          <indTot>1</indTot>
+          <xPed>ION-11265500000</xPed>
+        </prod>
+        <imposto>
+          <ICMS>
+            <ICMS40>
+              <orig>1</orig>
+              <CST>41</CST>
+            </ICMS40>
+          </ICMS>
+          <IPI>
+            <cEnq>999</cEnq>
+            <IPITrib>
+              <CST>99</CST>
+              <vBC>6625.00</vBC>
+              <pIPI>0</pIPI>
+              <vIPI>0</vIPI>
+            </IPITrib>
+          </IPI>
+          <PIS>
+            <PISAliq>
+              <CST>01</CST>
+              <vBC>6625.00</vBC>
+              <pPIS>1.6500</pPIS>
+              <vPIS>109.31</vPIS>
+            </PISAliq>
+          </PIS>
+          <COFINS>
+            <COFINSAliq>
+              <CST>01</CST>
+              <vBC>6625.00</vBC>
+              <pCOFINS>7.6000</pCOFINS>
+              <vCOFINS>503.50</vCOFINS>
+            </COFINSAliq>
+          </COFINS>
+        </imposto>
+        <infAdProd>Não TributadaIsento ou não sujeito a IPI</infAdProd>
+      </det>
+      <det nItem="2">
+        <prod>
+          <cProd>44527</cProd>
+          <cEAN>17908794800779</cEAN>
+          <xProd>POLACA SALG T. BACALHAU GG DUMAR CX10KG</xProd>
+          <NCM>03047500</NCM>
+          <CEST>1708000</CEST>
+          <CFOP>5102</CFOP>
+          <uCom>CX</uCom>
+          <qCom>5.0000</qCom>
+          <vUnCom>310.00</vUnCom>
+          <vProd>1550.00</vProd>
+          <cEANTrib>17908794800779</cEANTrib>
+          <uTrib>CX</uTrib>
+          <qTrib>5.0000</qTrib>
+          <vUnTrib>310.00</vUnTrib>
+          <indTot>1</indTot>
+          <xPed>ION-11265500000</xPed>
+        </prod>
+        <imposto>
+          <ICMS>
+            <ICMS40>
+              <orig>1</orig>
+              <CST>41</CST>
+            </ICMS40>
+          </ICMS>
+          <IPI>
+            <cEnq>999</cEnq>
+            <IPITrib>
+              <CST>99</CST>
+              <vBC>1550.00</vBC>
+              <pIPI>0</pIPI>
+              <vIPI>0</vIPI>
+            </IPITrib>
+          </IPI>
+          <PIS>
+            <PISNT>
+              <CST>04</CST>
+            </PISNT>
+          </PIS>
+          <COFINS>
+            <COFINSNT>
+              <CST>04</CST>
+            </COFINSNT>
+          </COFINS>
+        </imposto>
+        <infAdProd>Não TributadaIsento ou não sujeito a IPI</infAdProd>
+      </det>
+      <det nItem="3">
+        <prod>
+          <cProd>39307</cProd>
+          <cEAN>17898996280052</cEAN>
+          <xProd>POLACA T BAC DESF DUMAR PAC500G CX10KG</xProd>
+          <NCM>03053290</NCM>
+          <CFOP>5102</CFOP>
+          <uCom>CX</uCom>
+          <qCom>5.0000</qCom>
+          <vUnCom>320.00</vUnCom>
+          <vProd>1600.00</vProd>
+          <cEANTrib>17898996280052</cEANTrib>
+          <uTrib>CX</uTrib>
+          <qTrib>5.0000</qTrib>
+          <vUnTrib>320.00</vUnTrib>
+          <indTot>1</indTot>
+          <xPed>ION-11265500000</xPed>
+        </prod>
+        <imposto>
+          <ICMS>
+            <ICMS40>
+              <orig>1</orig>
+              <CST>40</CST>
+            </ICMS40>
+          </ICMS>
+          <IPI>
+            <cEnq>999</cEnq>
+            <IPITrib>
+              <CST>99</CST>
+              <vBC>1600.00</vBC>
+              <pIPI>0</pIPI>
+              <vIPI>0</vIPI>
+            </IPITrib>
+          </IPI>
+          <PIS>
+            <PISAliq>
+              <CST>01</CST>
+              <vBC>1600.00</vBC>
+              <pPIS>1.6500</pPIS>
+              <vPIS>26.40</vPIS>
+            </PISAliq>
+          </PIS>
+          <COFINS>
+            <COFINSAliq>
+              <CST>01</CST>
+              <vBC>1600.00</vBC>
+              <pCOFINS>7.6000</pCOFINS>
+              <vCOFINS>121.60</vCOFINS>
+            </COFINSAliq>
+          </COFINS>
+        </imposto>
+        <infAdProd>Isento ou não sujeito a IPIIsento ou não sujeito a ICMS</infAdProd>
+      </det>
+      <total>
+        <ICMSTot>
+          <vBC>0</vBC>
+          <vICMS>0</vICMS>
+          <vICMSDeson>0</vICMSDeson>
+          <vFCP>0</vFCP>
+          <vBCST>0</vBCST>
+          <vST>0</vST>
+          <vFCPST>0</vFCPST>
+          <vFCPSTRet>0</vFCPSTRet>
+          <vProd>9775.00</vProd>
+          <vFrete>0</vFrete>
+          <vSeg>0</vSeg>
+          <vDesc>0</vDesc>
+          <vII>0</vII>
+          <vIPI>0</vIPI>
+          <vIPIDevol>0</vIPIDevol>
+          <vPIS>135.71</vPIS>
+          <vCOFINS>625.10</vCOFINS>
+          <vOutro>0</vOutro>
+          <vNF>9775.00</vNF>
+        </ICMSTot>
+      </total>
+      <transp>
+        <modFrete>0</modFrete>
+        <vol>
+          <qVol>000000000000015</qVol>
+          <esp>KI</esp>
+          <pesoL>225.000</pesoL>
+          <pesoB>247.200</pesoB>
+        </vol>
+      </transp>
+      <pag>
+        <detPag>
+          <tPag>01</tPag>
+          <vPag>9775.00</vPag>
+        </detPag>
+      </pag>
+      <infRespTec>
+        <CNPJ>07504505000132</CNPJ>
+        <xContato>Ricardo Acras</xContato>
+        <email>contato@focusnfe.com.br</email>
+        <fone>41991820810</fone>
+      </infRespTec>
+    </infNFe>
+    <Signature xmlns="http://www.w3.org/2000/09/xmldsig#">
+      <SignedInfo>
+        <CanonicalizationMethod Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"/>
+        <SignatureMethod Algorithm="http://www.w3.org/2000/09/xmldsig#rsa-sha1"/>
+        <Reference URI="#NFe26260324150377000195550010059140681363282161">
+          <Transforms>
+            <Transform Algorithm="http://www.w3.org/2000/09/xmldsig#enveloped-signature"/>
+            <Transform Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"/>
+          </Transforms>
+          <DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha1"/>
+          <DigestValue>LsiSsM/405wWAECaM/FbVS94798=</DigestValue>
+        </Reference>
+      </SignedInfo>
+      <SignatureValue>F+H864Kvszvn2FbzPXgqtzhnFE7Uwa32JToxSVE/9+//M7YF96StkwNhjGNpMdtU+S3tNKpNUGdD
+rIpiVIR3uyJpcSY7VycpdqmZ2q4FZWqitrdVUyMnpNaBx2xxUZcuyq/fh8uQF6Z1pf0hPSXyF+19
+e79RFrW+exUvklun6TD7pgv5ChaTWKKJ7S8vhiMJbsFbBvuoucykaDcOighr1PJqb1VR8niKN2zR
+JAVdf65Xp5zQqv9ZyTD3fxfbJkKNtPNDP4LjLfu0x+/fiS3r7j1hpxpsmMU3fKaxMF/RS9RJImwV
+kRkAwag1VZmS4LzJR+B1dxHfoEFg0H0/dqsIBA==</SignatureValue>
+      <KeyInfo>
+        <X509Data>
+          <X509Certificate>MIIIGzCCBgOgAwIBAgIQRe5XeesL+WLRMB2YBu+YBDANBgkqhkiG9w0BAQsFADB0MQswCQYDVQQG
+EwJCUjETMBEGA1UEChMKSUNQLUJyYXNpbDEtMCsGA1UECxMkQ2VydGlzaWduIENlcnRpZmljYWRv
+cmEgRGlnaXRhbCBTLkEuMSEwHwYDVQQDExhBQyBDZXJ0aXNpZ24gTXVsdGlwbGEgRzcwHhcNMjYw
+MTIyMTk0NzE4WhcNMjcwMTIyMTk0NzE4WjCB7zELMAkGA1UEBhMCQlIxEzARBgNVBAoMCklDUC1C
+cmFzaWwxCzAJBgNVBAgMAlBFMQ8wDQYDVQQHDAZSZWNpZmUxGTAXBgNVBAsMEFZpZGVvQ29uZmVy
+ZW5jaWExFzAVBgNVBAsMDjA3NTk0NDE4MDAwMTEzMR4wHAYDVQQLDBVBQyBDZXJ0aXNpZ24gTXVs
+dGlwbGExGzAZBgNVBAsMEkFzc2luYXR1cmEgVGlwbyBBMTE8MDoGA1UEAwwzS0FSTkUgS0VJSk8g
+TE9HSVNUSUNBIElOVEVHUkFEQSBMVERBOjI0MTUwMzc3MDAwMTk1MIIBIjANBgkqhkiG9w0BAQEF
+AAOCAQ8AMIIBCgKCAQEAmBxRd3lOYWcLtoQ4cno51hDd9eGwtHRicZBDKrz+tuJGsh3KRc/qeu73
+ztPrm04fXqWyX571OfM8O2mXCIgyJv0Xlx0c51I/rusXuKZjN9w3MRL8T4C625RrHL2yHwxyFb2Y
+UDgAOmUW4emteUdp5gO35igkMuPjta8wFRHpRygCfQo3WIM7li/5yJMKyafABiVM69nQkx/4tn3j
+qH4AuWHDH3osDBUon6EmOt9RjcXsJI/8jAtouz8Xg/BWT/OwyjziXnktm8u3oMT2r7eBmYAfP5R1
+lGYSuWEx0YYOW1koF/EweVUicGKctt7vGE6+ZUYmqxXJ+/FFjHJw80I4owIDAQABo4IDKzCCAycw
+gbkGA1UdEQSBsTCBrqA4BgVgTAEDBKAvBC0yMTEwMTk1OTA4NDYzMDQyNDQ5MDAwMDAwMDAwMDAw
+MDAwMDAwMDAwMDAwMDCgKwYFYEwBAwKgIgQgSU5BQ0lPIEFNRVJJQ08gREUgTUlSQU5EQSBKVU5J
+T1KgGQYFYEwBAwOgEAQOMjQxNTAzNzcwMDAxOTWgFwYFYEwBAwegDgQMMDAwMDAwMDAwMDAwgRFJ
+TkFDSU9NQEtLLkNPTS5CUjAJBgNVHRMEAjAAMB8GA1UdIwQYMBaAFF1yDL8z0rvjhqboTAZxflVc
+B6DWMIGLBgNVHSAEgYMwgYAwfgYGYEwBAgELMHQwcgYIKwYBBQUHAgEWZmh0dHA6Ly9pY3AtYnJh
+c2lsLmNlcnRpc2lnbi5jb20uYnIvcmVwb3NpdG9yaW8vZHBjL0FDX0NlcnRpc2lnbl9NdWx0aXBs
+YS9EUENfQUNfQ2VydGlTaWduX011bHRpcGxhLnBkZjCBxgYDVR0fBIG+MIG7MFygWqBYhlZodHRw
+Oi8vaWNwLWJyYXNpbC5jZXJ0aXNpZ24uY29tLmJyL3JlcG9zaXRvcmlvL2xjci9BQ0NlcnRpc2ln
+bk11bHRpcGxhRzcvTGF0ZXN0Q1JMLmNybDBboFmgV4ZVaHR0cDovL2ljcC1icmFzaWwub3V0cmFs
+Y3IuY29tLmJyL3JlcG9zaXRvcmlvL2xjci9BQ0NlcnRpc2lnbk11bHRpcGxhRzcvTGF0ZXN0Q1JM
+LmNybDAOBgNVHQ8BAf8EBAMCBeAwHQYDVR0lBBYwFAYIKwYBBQUHAwIGCCsGAQUFBwMEMIG2Bggr
+BgEFBQcBAQSBqTCBpjBkBggrBgEFBQcwAoZYaHR0cDovL2ljcC1icmFzaWwuY2VydGlzaWduLmNv
+bS5ici9yZXBvc2l0b3Jpby9jZXJ0aWZpY2Fkb3MvQUNfQ2VydGlzaWduX011bHRpcGxhX0c3LnA3
+YzA+BggrBgEFBQcwAYYyaHR0cDovL29jc3AtYWMtY2VydGlzaWduLW11bHRpcGxhLmNlcnRpc2ln
+bi5jb20uYnIwDQYJKoZIhvcNAQELBQADggIBAHcfoeGZFGwodj15XyyGkujbIjB4EsB/OiOn2Lgi
+/RWdSv5e/KSVC8kWWQL3C9f+z3hVUMs0cJcjt1V3TsyImu3PWUuBp5Ge4zuEQAceYm70FM5uszi0
+wM5vMs093cBJLWS680SS4qZqfmhd2pOlleVLPSECtXpZIGXSnAr8TWwRTZBa9ZP62H8FEumnjoNb
+BNaqnBJSWJWUiNbUbHUWlrjJLTkC8xzSSLOI3KXmNGtqkJkIzd8V32UlWI5jliO36aPR91wXXcpC
+E6tiS8UIBNuB/qfzqwHpAmCgaxjfrpOMM70hc2uy0TgFtqEICycmFUDACUoWkW9+DDrQDhrgkwGc
+dDvERdKLRZUC036u11dUg/0Y3iE/lTkfKae2Z7MBwTn6iynbiGzZkusOsOsUjdJYp89B8akYHVrQ
+oRKwu6FG9jl3L5HRD6QQJMpOzIvkUzOOBZ6IbSCkUM9s0E5t2R2mTrzGpkTIzYGGt1YnFnFalav0
+pkesTisseFG+ln9FGAvtClPtYRog1lNSXFPFgPTXU9l2wWDjy0O/FtSY4G0ivbragPM6JPyNsMre
+ZDc7W+nZdA1P5qEjUx0myYzRS6FqwRYhGTM3Hj6HQbt8pixnQxbv/ASUqJz6WBGwlSGqS5xZnc2x
+VC2LYwx7qnJIhXi45/hnFfZ+yVVe9aUAS1PC</X509Certificate>
+        </X509Data>
+      </KeyInfo>
+    </Signature>
+  </NFe>
+  <protNFe versao="4.00">
+    <infProt Id="NFe126260036420215">
+      <tpAmb>1</tpAmb>
+      <verAplic>NFEPE_P_4.3.8</verAplic>
+      <chNFe>26260324150377000195550010059140681363282161</chNFe>
+      <dhRecbto>2026-03-26T23:37:23-03:00</dhRecbto>
+      <nProt>126260036420215</nProt>
+      <digVal>LsiSsM/405wWAECaM/FbVS94798=</digVal>
+      <cStat>100</cStat>
+      <xMotivo>Autorizado o uso da NF-e</xMotivo>
+    </infProt>
+  </protNFe>
+</nfeProc>

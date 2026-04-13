@@ -36,14 +36,6 @@
         "logic_check_missing_dates": ["data_emissao"]
     },
 
-    "gestao_nfe": {
-        "database": "banco_mercado",
-        "schema": "public",
-        "table": "fato_nfe",
-        "query_file": "gestao_nfe.sql",
-        "logic_check_missing_dates": []
-    },
-
     "precos_produtos": {
         "database": "banco_mercado",
         "schema": "public",

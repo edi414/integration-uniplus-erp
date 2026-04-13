@@ -14,35 +14,43 @@ class CatalogoETL:
         try:
             self.logger.info(f"Transforming {len(df)} records")
             
-            column_mapping = {
-                'sku': 'sku',
-                'ean': 'ean', 
-                'nome': 'nome',
-                'nome_pdv': 'nome_pdv',
-                'preco_venda': 'preco_venda',
-                'preco_ultima_compra': 'preco_ultima_compra',
-                'stock': 'stock'
-            }
-            
-            df = df.rename(columns=column_mapping)
-            
-            text_columns = ['sku', 'ean', 'nome', 'nome_pdv']
+            # Text columns to ensure they are strings without 'None' strings
+            text_columns = [
+                'sku', 'ean', 'nome', 'nome_pdv', 'cean_no_fornecedor',
+                'unidade_venda', 'imagem', 'cest', 'ncm', 'ippt', 'iat', 'paf_p_st'
+            ]
             for col in text_columns:
                 if col in df.columns:
                     df[col] = df[col].astype(str)
                     df.loc[df[col] == 'None', col] = None
+                    df.loc[df[col] == 'nan', col] = None
             
-            numeric_columns = ['preco_venda', 'preco_ultima_compra', 'stock']
+            # Numeric columns
+            numeric_columns = [
+                'preco_venda', 'preco_ultima_compra', 'stock', 
+                'preco_custo', 'fator_multiplicativo', 'qtd_por_caixa'
+            ]
             for col in numeric_columns:
                 if col in df.columns:
                     df[col] = pd.to_numeric(df[col], errors='coerce')
-            
-            columns = [
-                'sku', 'ean', 'nome', 'nome_pdv', 
-                'preco_ultima_compra', 'preco_venda', 'stock'
+                    
+            # Integer columns that might have nulls
+            int_columns = [
+                'balanca_integrada', 'id_grupo', 'id_regra_icms', 
+                'id_grupo_ipi', 'id_grupo_pis', 'id_grupo_cofins', 'ecf_icms_st'
             ]
+            for col in int_columns:
+                if col in df.columns:
+                    df[col] = pd.to_numeric(df[col], errors='coerce').astype('Int64')
+
+            # Datetime columns
+            date_columns = ['cadastro_at', 'ultima_compra_at', 'ultima_venda_at', 'edited_at']
+            for col in date_columns:
+                if col in df.columns:
+                    df[col] = pd.to_datetime(df[col], errors='coerce')
             
-            return df[columns]
+            # Return the dataframe with all available columns
+            return df
             
         except Exception as e:
             self.logger.error(f"Error during transformation: {str(e)}")

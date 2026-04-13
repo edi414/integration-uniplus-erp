@@ -17,10 +17,10 @@ class Config:
     UNIPLUS_API_CLIENT_SECRET = os.getenv("UNIPLUS_API_CLIENT_SECRET", "l4gtr1ck2rspr3ngcl3ent")
 
     # DB (MariaDB - para uso futuro nos handlers de alteração direta)
-    MARIADB_HOST = os.getenv("MARIADB_HOST", "localhost")
-    MARIADB_PORT = int(os.getenv("MARIADB_PORT", 3306))
-    MARIADB_USER = os.getenv("MARIADB_USER", "root")
-    MARIADB_PASSWORD = os.getenv("MARIADB_PASSWORD", "")
-    MARIADB_DB = os.getenv("MARIADB_DB", "uniplus")
+    MARIADB_HOST = os.getenv("G3_HOST", "localhost")
+    MARIADB_PORT = int(os.getenv("G3_PORT", 3306))
+    MARIADB_USER = os.getenv("G3_USER", "root")
+    MARIADB_PASSWORD = os.getenv("G3_PASSWORD", "")
+    MARIADB_DB = os.getenv("G3_DB", "gtech-gestao")
 
 config = Config()

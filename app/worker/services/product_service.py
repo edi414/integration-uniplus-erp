@@ -12,46 +12,43 @@ class ProductService:
 
     def process_price_update(self, ean: str, raw_payload: dict):
         """
-        Recebe a intenção de atualizar via payload cru fornecido pelo n8n,
-        limpa/valida o modelo de dados e envia para a API.
-        No futuro, trocará a API pelo 'self.db.update_product_price()'.
+        Interpreta o evento, busca o ID interno no G3 e aplica o update cirúrgico.
         """
-        # Obter código do produto local ou via API
-        product_code = self.api.get_product_code_by_ean(ean)
+        # 1. Obter novo preço do payload
+        new_price = raw_payload.get("preco")
+        if new_price is None:
+            logger.error(f"Evento sem campo 'preco' para EAN {ean}")
+            return False
 
-        if not product_code:
-            message = f"Processamento cancelado: Código do produto não encontrado para EAN {ean}"
+        # Converter preço de string (ex: '150,00') para float se necessário
+        if isinstance(new_price, str):
+            try:
+                new_price = float(new_price.replace(',', '.'))
+            except ValueError:
+                logger.error(f"Formato de preço inválido: {new_price} para EAN {ean}")
+                return False
+
+        # 2. Obter ID do produto no MariaDB G3 (Local)
+        product_id = self.db.get_id_produto_by_gtin(ean)
+
+        if not product_id:
+            message = f"Processamento cancelado: ID do produto não encontrado no MariaDB para EAN {ean}"
             logger.warning(message)
             log_event_to_file(message, level=logging.WARNING)
             return False
 
-        # Verifica e limpa o payload do N8N seguindo a regra original
-        processed_payload = self._apply_business_rules(raw_payload, product_code, ean)
-
-        if not processed_payload:
-             message = f"Falha ao processar as regras de negócio para EAN {ean}"
-             logger.error(message)
-             log_event_to_file(message, level=logging.ERROR)
-             return False
-
-        # Montar estrutura final consumida pela API
-        final_payload = {"produto": processed_payload}
-
-        logger.info(f"Tentando atualizar o produto EAN {ean} via API")
+        logger.info(f"Iniciando transação cirúrgica para EAN {ean} (ID: {product_id}) -> Novo Preço: {new_price}")
         
-        # O N8N já envia o payload total com as alterações (incluído o novo preço)
-        success = self.api.update_product(final_payload)
+        # 3. Executar Transação SQL Cirúrgica
+        success = self.db.update_price_surgical(product_id, new_price)
         
-        # Futuro handler via DB seria engatilhado aqui:
-        # success = self.db.update_product_price(ean, processed_payload.get('preco'))
-
         if success:
-            msg = f"Sucesso na atualização de preço do EAN {ean} - payload processado: {processed_payload}"
+            msg = f"SUCESSO: EAN {ean} atualizado via DB G3 (Cirúrgico). Novo Preço: {new_price}"
             logger.info(msg)
             log_event_to_file(msg, level=logging.INFO)
             return True
         else:
-             msg = f"Falha na atualização de preço via API para EAN {ean}."
+             msg = f"FALHA: Erro na transação cirúrgica para EAN {ean}."
              logger.error(msg)
              log_event_to_file(msg, level=logging.ERROR)
              return False
@@ -91,3 +88,5 @@ class ProductService:
             payload["casasDecimais"] = 0
 
         return payload
+
+# uv run python -m app.worker.worker

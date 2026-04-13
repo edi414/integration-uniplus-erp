@@ -1,39 +1,40 @@
-SELECT  
-    df.numerodocumento AS id_uniplus,
-    df.chaveacesso AS chave,
-    df.emissao AS data_emissao,  
-    df.razaosocial AS fornecedor,  
-    df.cnpjcpf AS cpnj_cpf,  
-    df.valor AS valor,
-    n.datainclusao AS data_inclusao,
-    df.dataprimeirovencimento AS vencimento,
+SELECT 
+    n.numero AS codigo,
+    m.chave_nfe,
+    m.dhEmi AS data_emissao,
+    m.xNome AS fornecedor,
+    m.CNPJCPF AS cpnj_cpf,
+    CAST(REPLACE(m.vNF, ',', '.') AS DECIMAL(15,2)) AS valor,
+    n.natureza_operacao,
+    FALSE AS processed,
+    
+    -- Junta as colunas da tabela n (vêm NULL se a nota só estiver no monitor)
+    TIMESTAMP(n.data_edicao, n.hora_chegada) AS data_hora_entrada,
+    
+	CASE 
+        WHEN n.chave IS NULL THEN 'Pendente Importação'
+        WHEN n.movimentacao_estoque = 1 AND n.status_alt_preco = 1 THEN 'Processado Total'
+        WHEN n.movimentacao_estoque = 1 AND n.status_alt_preco = 0 THEN 'Estoque Atualizado (Preço Pendente)'
+        ELSE 'Em Processamento'
+    END AS status_processamento,
+    MAX(m.deuCiencia) AS manifestacao,
+    
+    -- Define o status do XML
+    IF(SUM(m.schemaType = 'procNFe') > 0, 'XML Disponível', 'Apenas Resumo') AS status_xml
 
-    CASE 
-        WHEN df.situacaonfe = 1 THEN 'autorizada'
-        WHEN df.situacaonfe = 3 THEN 'cancelada'
-        ELSE 'nao_autorizada'
-    END AS status_nfe,
+FROM dfe_server_log_monitor_notas m
+LEFT JOIN `gtech-gestao`.notas_entrada n
+    ON n.chave = m.chave_nfe 
+    AND n.movimentacao_estoque = 1
 
-    df.situacaomanifestacao,
-    CASE 
-        WHEN df.situacaodocumentofiscal = 1 THEN 'pendente_processamento'
-        WHEN df.situacaodocumentofiscal = 2 THEN 'importacao_pendente'
-        WHEN df.situacaodocumentofiscal = 3 THEN 'liberacao_pendente'
-        WHEN df.situacaodocumentofiscal = 4 THEN 'xml_importado'
-        WHEN df.situacaodocumentofiscal = 5 THEN 'exclusao_pendente'
-        WHEN df.situacaodocumentofiscal = 6 THEN 'cancelada_pelo_fornecedor'
-        WHEN df.situacaodocumentofiscal = 8 THEN 'entrada_fornecedor'
-        ELSE 'desconhecida'
-    END AS status_documento_fiscal,
-    false as processed,
-    df.arquivoxml
+WHERE 
+    -- Filtro dinâmico para o mês atual
+    STR_TO_DATE(m.dhEmi, '%d/%m/%Y %H:%i:%s') >= DATE_FORMAT(NOW(), '%Y-%m-01 00:00:00')
+    AND STR_TO_DATE(m.dhEmi, '%d/%m/%Y %H:%i:%s') <= LAST_DAY(NOW()) + INTERVAL 1 DAY - INTERVAL 1 SECOND
 
-FROM  
-    documentofiscalfornecedor df 
-LEFT JOIN notafiscal n
-    ON df.chaveacesso = n.chavenfe AND n.tipodocumento = 'E'
-LEFT JOIN cfop c  
-    ON c.id = n.idcfop  
-WHERE 1=1
-ORDER BY  
-    df.emissao DESC 
+GROUP BY 
+    m.chave_nfe,
+    m.dhEmi,
+    m.xNome,
+    m.CNPJCPF,
+    m.vNF;

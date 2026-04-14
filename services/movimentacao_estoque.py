@@ -22,11 +22,11 @@ class MovimentacaoEstoqueETL:
             
             # Campo inteiro (filial)
             if "filial" in df.columns:
-                df["filial"] = pd.to_numeric(df["filial"], errors="coerce").astype("Int64")
+                df["filial"] = pd.to_numeric(df["filial"], errors="coerce").round().astype("Int64")
             
             # Campo inteiro (tipodocumento)
             if "tipodocumento" in df.columns:
-                df["tipodocumento"] = pd.to_numeric(df["tipodocumento"], errors="coerce").astype("Int64")
+                df["tipodocumento"] = pd.to_numeric(df["tipodocumento"], errors="coerce").round().astype("Int64")
             
             # Campos numéricos
             numeric_columns = [

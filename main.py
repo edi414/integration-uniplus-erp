@@ -1,90 +1,77 @@
-# Example usage of the ETL services
+import time
 from services.vendas_daily import VendasDailyETL
 from services.notas_fiscais import NotasFiscaisETL
 from services.catalogo import CatalogoETL
-from services.xml_downloader import XMLDownloaderService
 from services.contas_a_pagar import ContasAPagarETL
 from services.movimentacao_estoque import MovimentacaoEstoqueETL
+from services.nfe_processor import NFeProcessorETL
 from settings.db_config import get_source_config, get_target_config
-from datetime import datetime, date
 
 def run_vendas_daily_etl():
-    """
-    Run the daily sales ETL for all missing dates
-    This is the main entry point - always processes missing dates from company_schedule
-    """
+    """Run the daily sales ETL for all missing dates"""
     source_config = get_source_config()
     target_config = get_target_config()
     etl = VendasDailyETL(source_config, target_config)
     return etl.run_etl()
 
-def run_notas_fiscais_etl(date_filter: str = None):
-    """
-    Run the notas fiscais ETL
-    Args:
-        date_filter: Optional date filter (format: 'YYYY-MM-DD'). 
-                    If None, will fetch all records.
-                    If provided, will fetch records from that date onwards.
-    """
+def run_notas_fiscais_etl():
+    """Run the notas fiscais ETL (Monitoramento G3 + SEFAZ)"""
     source_config = get_source_config()
     target_config = get_target_config()
     etl = NotasFiscaisETL(source_config, target_config)
-    etl.run_etl(date_filter)
+    etl.run_etl()
+
+def run_nfe_processor_etl():
+    """Run the NFe XML processor ETL (Refinamento de Dados)"""
+    target_config = get_target_config()
+    etl = NFeProcessorETL(target_config)
+    etl.run_etl()
 
 def run_catalogo_etl():
-    """
-    Run the catalogo (product catalog) ETL
-    This will sync all active products from the source database to the target catalog table
-    """
+    """Run the catalogo (product catalog) ETL"""
     source_config = get_source_config()
     target_config = get_target_config()
     etl = CatalogoETL(source_config, target_config)
     etl.run_etl()
 
 def run_contas_a_pagar_etl():
-    """
-    Executa o ETL de contas a pagar (com UPSERT)
-    """
+    """Executa o ETL de contas a pagar (com UPSERT)"""
     source_config = get_source_config()
     target_config = get_target_config()
     etl = ContasAPagarETL(source_config, target_config)
     return etl.run_etl()
 
 def run_movimentacao_estoque_etl():
-    """
-    Executa o ETL de movimentação de estoque para datas faltantes
-    Processa automaticamente as datas faltantes baseado na tabela company_schedule usando UPSERT
-    """
+    """Executa o ETL de movimentação de estoque para datas faltantes"""
     source_config = get_source_config()
     target_config = get_target_config()
     etl = MovimentacaoEstoqueETL(source_config, target_config)
     return etl.run_etl()
 
-def run_xml_download(download_folder: str = r"G:\Meu Drive"):
-    target_config = get_target_config()
-    downloader = XMLDownloaderService(target_config, download_folder)
-    return downloader.run_xml_download()
-
 if __name__ == "__main__":
-
-    print("Running vendas daily ETL for missing dates...")
-    summary = run_vendas_daily_etl()
-    print(f"Processed: {summary['processed']}, Failed: {summary['failed']}")
+    print("🚀 Iniciando Vendas Daily ETL...")
+    v_summary = run_vendas_daily_etl()
+    print(f"   Processados: {v_summary['processed']}, Falhas: {v_summary['failed']}")
     
-    print(f"Running notas fiscais ETL")
+    print("\n🚀 Iniciando Notas Fiscais ETL (Extração G3 + Download SEFAZ)...")
     run_notas_fiscais_etl()
     
-    print("Running catalogo ETL to sync product catalog")
+    # Delay solicitado pelo usuário para garantir independência/término de rede
+    print("\n⏳ Aguardando 60 segundos antes de processar os XMLs...")
+    time.sleep(60)
+    
+    print("\n🚀 Iniciando Refinamento de Dados XML (NFe Processor)...")
+    run_nfe_processor_etl()
+    
+    print("\n🚀 Iniciando Catalogo ETL (Sincronização de Produtos)...")
     run_catalogo_etl()
 
-    print("Running contas a pagar ETL")
+    print("\n🚀 Iniciando Contas a Pagar ETL...")
     cap_summary = run_contas_a_pagar_etl()
-    print(f"Registros processados (contas_a_pagar): {cap_summary['processed']}")
+    print(f"   Registros processados: {cap_summary['processed']}")
 
-    print("Running movimentacao estoque ETL for missing dates...")
-    estoque_summary = run_movimentacao_estoque_etl()
-    print(f"Processed: {estoque_summary['processed']}, Failed: {estoque_summary['failed']}")
+    print("\n🚀 Iniciando Movimentação de Estoque ETL...")
+    est_summary = run_movimentacao_estoque_etl()
+    print(f"   Processados: {est_summary['processed']}, Falhas: {est_summary['failed']}")
 
-    print("Running XML download")
-    stats = run_xml_download()
-    print(f"Downloaded: {stats['downloaded']}, Failed: {stats['failed']}")
+    print("\n✅ Todos os processos ETL foram finalizados com sucesso.")

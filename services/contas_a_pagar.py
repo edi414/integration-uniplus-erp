@@ -26,7 +26,7 @@ class ContasAPagarETL:
 
             # Campo inteiro (parcela)
             if "parcela" in df.columns:
-                df["parcela"] = pd.to_numeric(df["parcela"], errors="coerce").astype("Int64")
+                df["parcela"] = pd.to_numeric(df["parcela"], errors="coerce").round().astype("Int64")
 
             # id_origem pode ser bigint - tratar valores muito grandes
             if "id_origem" in df.columns:

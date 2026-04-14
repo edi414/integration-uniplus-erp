@@ -41,7 +41,7 @@ class CatalogoETL:
             ]
             for col in int_columns:
                 if col in df.columns:
-                    df[col] = pd.to_numeric(df[col], errors='coerce').astype('Int64')
+                    df[col] = pd.to_numeric(df[col], errors='coerce').round().astype('Int64')
 
             # Datetime columns
             date_columns = ['cadastro_at', 'ultima_compra_at', 'ultima_venda_at', 'edited_at']
@@ -49,8 +49,12 @@ class CatalogoETL:
                 if col in df.columns:
                     df[col] = pd.to_datetime(df[col], errors='coerce')
             
-            # Return the dataframe with all available columns
-            return df
+            # Return only columns that exist in target table to avoid insertion errors
+            target_columns = [
+                'sku', 'ean', 'nome', 'nome_pdv', 
+                'preco_ultima_compra', 'preco_venda', 'stock'
+            ]
+            return df[[c for c in target_columns if c in df.columns]]
             
         except Exception as e:
             self.logger.error(f"Error during transformation: {str(e)}")

@@ -39,6 +39,11 @@ class VendasDailyETL:
         # Transform cancelado to boolean (True/False)
         # Now handled by SQL as 1/0, just ensure it's boolean
         df['canc'] = df['canc'].astype(bool).fillna(False)
+
+        # Ensure integers are correctly casted (pdv, filial)
+        for col in ['pdv', 'filial']:
+            if col in df.columns:
+                df[col] = pd.to_numeric(df[col], errors='coerce').round().astype('Int64')
         
         # Add missing columns with default values
         df['devolucao_troca'] = None

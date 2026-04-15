@@ -2,6 +2,7 @@ import pandas as pd
 from handlers.db_connection import DatabaseConnection
 from handlers.query_loader import get_etl_query, get_etl_config, load_query_from_file
 from handlers.log_handler import setup_logger
+from utils.data_transformers import clean_dataframe_nans
 from typing import Dict, Optional
 
 class MovimentacaoEstoqueETL:
@@ -51,7 +52,7 @@ class MovimentacaoEstoqueETL:
             if "datahora" in df.columns:
                 df["datahora"] = pd.to_datetime(df["datahora"], errors="coerce")
             
-            # Campos de texto: normalizar strings e None
+            # Normalizar campos de texto
             text_columns = [
                 "local_estoque",
                 "documento",
@@ -64,8 +65,6 @@ class MovimentacaoEstoqueETL:
             for col in text_columns:
                 if col in df.columns:
                     df[col] = df[col].astype(str)
-                    df.loc[df[col] == "None", col] = None
-                    df.loc[df[col] == "nan", col] = None
             
             # Campo numérico (currenttimemillis)
             if "currenttimemillis" in df.columns:
@@ -101,21 +100,10 @@ class MovimentacaoEstoqueETL:
             existing_columns = [c for c in columns if c in df.columns]
             result = df[existing_columns]
             
-            # Limpeza final de NaT
-            for col in result.columns:
-                if str(result[col].dtype).startswith("datetime64"):
-                    result[col] = result[col].replace({pd.NaT: None})
+            existing_columns = [c for c in columns if c in df.columns]
+            result = df[existing_columns]
             
-            # Remover duplicatas baseadas nas colunas da constraint única
-            # Isso evita erro "ON CONFLICT DO UPDATE command cannot affect row a second time"
-            unique_key_cols = ["datahora", "codigo", "documento", "tipodocumento", "tipo_movimentacao", "currenttimemillis"]
-            if all(col in result.columns for col in unique_key_cols):
-                initial_count = len(result)
-                result = result.drop_duplicates(subset=unique_key_cols, keep='first')
-                if len(result) < initial_count:
-                    self.logger.warning(f"Removidas {initial_count - len(result)} duplicatas baseadas na constraint única")
-            
-            return result
+            return clean_dataframe_nans(result)
             
         except Exception as e:
             self.logger.error(f"Erro na transformação: {str(e)}")

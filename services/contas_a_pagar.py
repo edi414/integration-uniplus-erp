@@ -2,6 +2,7 @@ import pandas as pd
 from handlers.db_connection import DatabaseConnection
 from handlers.query_loader import get_etl_query, get_etl_config
 from handlers.log_handler import setup_logger
+from utils.data_transformers import clean_dataframe_nans
 from typing import Dict, Optional
 
 
@@ -54,7 +55,7 @@ class ContasAPagarETL:
             if "registro" in df.columns:
                 df["registro"] = pd.to_datetime(df["registro"], errors="coerce")
 
-            # Campos de texto: normalizar strings e None
+            # Normalizar strings
             text_columns = [
                 "tipo",
                 "documento",
@@ -67,7 +68,6 @@ class ContasAPagarETL:
             for col in text_columns:
                 if col in df.columns:
                     df[col] = df[col].astype(str)
-                    df.loc[df[col] == "None", col] = None
 
             # Garantir presença e ordem das colunas da tabela de destino
             columns = [
@@ -94,12 +94,7 @@ class ContasAPagarETL:
             existing_columns = [c for c in columns if c in df.columns]
             result = df[existing_columns]
 
-            # Limpeza final de NaT
-            for col in result.columns:
-                if str(result[col].dtype).startswith("datetime64"):
-                    result[col] = result[col].replace({pd.NaT: None})
-
-            return result
+            return clean_dataframe_nans(result)
 
         except Exception as e:
             self.logger.error(f"Erro na transformação: {str(e)}")

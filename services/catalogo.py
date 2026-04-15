@@ -1,6 +1,7 @@
 import pandas as pd
 from handlers.db_connection import DatabaseConnection
 from handlers.query_loader import get_etl_query, get_etl_config
+from utils.data_transformers import clean_dataframe_nans
 from handlers.log_handler import setup_logger
 from typing import Dict, Optional
 
@@ -14,7 +15,7 @@ class CatalogoETL:
         try:
             self.logger.info(f"Transforming {len(df)} records")
             
-            # Text columns to ensure they are strings without 'None' strings
+            # Text columns to ensure they are strings
             text_columns = [
                 'sku', 'ean', 'nome', 'nome_pdv', 'cean_no_fornecedor',
                 'unidade_venda', 'imagem', 'cest', 'ncm', 'ippt', 'iat', 'paf_p_st'
@@ -22,8 +23,6 @@ class CatalogoETL:
             for col in text_columns:
                 if col in df.columns:
                     df[col] = df[col].astype(str)
-                    df.loc[df[col] == 'None', col] = None
-                    df.loc[df[col] == 'nan', col] = None
             
             # Numeric columns
             numeric_columns = [
@@ -54,7 +53,9 @@ class CatalogoETL:
                 'sku', 'ean', 'nome', 'nome_pdv', 
                 'preco_ultima_compra', 'preco_venda', 'stock'
             ]
-            return df[[c for c in target_columns if c in df.columns]]
+            df = df[[c for c in target_columns if c in df.columns]]
+            
+            return clean_dataframe_nans(df)
             
         except Exception as e:
             self.logger.error(f"Error during transformation: {str(e)}")

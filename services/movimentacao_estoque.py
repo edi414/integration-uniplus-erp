@@ -100,9 +100,6 @@ class MovimentacaoEstoqueETL:
             existing_columns = [c for c in columns if c in df.columns]
             result = df[existing_columns]
             
-            existing_columns = [c for c in columns if c in df.columns]
-            result = df[existing_columns]
-            
             return clean_dataframe_nans(result)
             
         except Exception as e:

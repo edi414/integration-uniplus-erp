@@ -1,4 +1,7 @@
 import time
+import os
+import sentry_sdk
+from dotenv import load_dotenv
 from services.vendas_daily import VendasDailyETL
 from services.notas_fiscais import NotasFiscaisETL
 from services.catalogo import CatalogoETL
@@ -6,6 +9,13 @@ from services.contas_a_pagar import ContasAPagarETL
 from services.movimentacao_estoque import MovimentacaoEstoqueETL
 from services.nfe_processor import NFeProcessorETL
 from settings.db_config import get_source_config, get_target_config
+
+# Initialize Sentry
+load_dotenv()
+sentry_sdk.init(
+    dsn=os.getenv("SENTRY_DSN"),
+    send_default_pii=True,
+)
 
 def run_vendas_daily_etl():
     """Run the daily sales ETL for all missing dates"""

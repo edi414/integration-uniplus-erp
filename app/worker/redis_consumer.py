@@ -2,6 +2,7 @@ import redis
 import json
 import time
 import logging
+import requests
 from traceback import format_exc
 
 from app.worker.config import config
@@ -64,6 +65,14 @@ class RedisConsumer:
                         
                         if event_type == "update_price":
                             handle_price_update(event)
+                            
+                            # Webhook de notificação após processamento
+                            try:
+                                logger.info(f"Enviando notificação para webhook: {config.WEBHOOK_URL}")
+                                response = requests.post(config.WEBHOOK_URL, json=event, timeout=10)
+                                logger.info(f"Webhook enviado com sucesso. Status: {response.status_code}")
+                            except Exception as e:
+                                logger.error(f"Erro ao enviar webhook: {str(e)}")
                         else:
                             msg = f"Tipo de evento '{event_type}' desconhecido. Mensagem ignorada."
                             logger.warning(msg)

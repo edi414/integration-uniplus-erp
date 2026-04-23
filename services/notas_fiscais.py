@@ -6,6 +6,7 @@ from handlers.db_connection import DatabaseConnection
 from handlers.query_loader import get_etl_query, get_etl_config, load_query_from_file
 from handlers.log_handler import setup_logger
 from handlers.nfe_handler import NFeHandler
+from utils.data_transformers import clean_dataframe_nans
 from typing import Dict, Optional, List
 
 class NotasFiscaisETL:
@@ -37,7 +38,8 @@ class NotasFiscaisETL:
                 'data_hora_entrada': 'data_inclusao',
                 'status_processamento': 'status_processamento',
                 'manifestacao': 'manifestacao',
-                'status_xml': 'status_xml'
+                'status_xml': 'status_xml',
+                'id_usuario_insercao': 'id_usuario_insercao'
             }
             
             df = df.rename(columns=column_mapping)
@@ -61,10 +63,11 @@ class NotasFiscaisETL:
             columns = [
                 'codigo', 'chave', 'data_emissao', 'fornecedor', 'cpnj_cpf', 'valor',
                 'natureza_operacao', 'processed', 'data_inclusao', 
-                'status_processamento', 'manifestacao', 'status_xml'
+                'status_processamento', 'manifestacao', 'status_xml', 'id_usuario_insercao'
             ]
             
-            return df[columns]
+            # Limpa NaNs transformando em None (NULL) antes de enviar ao banco
+            return clean_dataframe_nans(df[columns])
             
         except Exception as e:
             self.logger.error(f"Erro na transformação de dados: {str(e)}")

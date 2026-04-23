@@ -7,20 +7,18 @@ SELECT
     CAST(REPLACE(m.vNF, ',', '.') AS DECIMAL(15,2)) AS valor,
     n.natureza_operacao,
     FALSE AS processed,
-    
-    -- Junta as colunas da tabela n (vêm NULL se a nota só estiver no monitor)
     TIMESTAMP(n.data_edicao, n.hora_chegada) AS data_hora_entrada,
     
-	CASE 
+    CASE 
         WHEN n.chave IS NULL THEN 'Pendente Importação'
         WHEN n.movimentacao_estoque = 1 AND n.status_alt_preco = 1 THEN 'Processado Total'
         WHEN n.movimentacao_estoque = 1 AND n.status_alt_preco = 0 THEN 'Estoque Atualizado (Preço Pendente)'
         ELSE 'Em Processamento'
     END AS status_processamento,
-    MAX(m.deuCiencia) AS manifestacao,
     
-    -- Define o status do XML
-    IF(SUM(m.schemaType = 'procNFe') > 0, 'XML Disponível', 'Apenas Resumo') AS status_xml
+    MAX(m.deuCiencia) AS manifestacao,
+    IF(SUM(m.schemaType = 'procNFe') > 0, 'XML Disponível', 'Apenas Resumo') AS status_xml,
+    n.id_usuario_insercao
 
 FROM dfe_server_log_monitor_notas m
 LEFT JOIN `gtech-gestao`.notas_entrada n
@@ -37,4 +35,5 @@ GROUP BY
     m.dhEmi,
     m.xNome,
     m.CNPJCPF,
-    m.vNF;
+    m.vNF,
+	n.id_usuario_insercao;

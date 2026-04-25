@@ -30,7 +30,8 @@ class VendasDailyETL:
             'cnpj_cpf': 'cnpj_cpf',
             'ccf': 'ccf',
             'status_nfce': 'status_nfce',
-            'valor_recebido': 'valor_recebido'
+            'valor_recebido': 'valor_recebido',
+            'id_documento': 'id_documento'
         }
         
         # Rename columns
@@ -73,7 +74,7 @@ class VendasDailyETL:
             'pdv', 'filial', 'emissao', 'hora', 'documento', 'ccf',
             'v_bruto', 'desconto', 'acrescimo', 'devolucao_troca', 'v_liquido', 'canc', 'cliente',
             'cnpj_cpf', 'finalizador', 'valor_finalizador', 'hora_final', 'troco',
-            'status_nfce', 'valor_recebido'
+            'status_nfce', 'valor_recebido', 'id_documento'
         ]
         
         # Replace all NaN (Not a Number) and NaT (Not a Time) with None for NULL in database
@@ -138,7 +139,9 @@ class VendasDailyETL:
         config = get_etl_config('vendas_daily')
         table_name = config.get('table', 'uniplus_vendas_pdvs')
         schema = config.get('schema', 'public')
-        unique_columns = config.get('unique_columns', ['emissao', 'hora', 'documento', 'v_liquido'])
+        
+        # A chave única verdadeira é pdv + filial + id_documento (conforme constraint do banco)
+        unique_columns = ['pdv', 'filial', 'id_documento']
         
         try:
             self.logger.info(f"Starting UPSERT for {len(df)} records on date {date}")

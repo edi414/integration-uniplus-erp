@@ -6,10 +6,10 @@ SELECT
         WHEN 'CAIXA003' THEN 3
         ELSE 0
     END AS pdv,
-    evc.id_ecf_movimento,
+    evc.id as id_documento,
     evc.ccf,
     evc.data_venda AS emissao,
-    evc.hora_venda AS hora,
+    CAST(CONCAT(evc.data_venda, ' ', evc.hora_venda) AS DATETIME) AS hora,
     evc.valor_venda AS v_bruto,
     evc.desconto,
     evc.acrescimo,

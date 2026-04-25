@@ -66,9 +66,12 @@ class MovimentacaoEstoqueETL:
                 if col in df.columns:
                     df[col] = df[col].astype(str)
             
-            # Campo numérico (currenttimemillis)
+            # Campo numérico (currenttimemillis e id_documento)
             if "currenttimemillis" in df.columns:
                 df["currenttimemillis"] = pd.to_numeric(df["currenttimemillis"], errors="coerce")
+            
+            if "id_documento" in df.columns:
+                df["id_documento"] = pd.to_numeric(df["id_documento"], errors="coerce").round().astype("Int64")
             
             # Garantir presença e ordem das colunas da tabela de destino
             columns = [
@@ -95,6 +98,7 @@ class MovimentacaoEstoqueETL:
                 "comissao",
                 "cfop",
                 "un",
+                "id_documento",
             ]
             
             existing_columns = [c for c in columns if c in df.columns]

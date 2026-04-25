@@ -2,6 +2,7 @@ SELECT
     'Geral' AS local_estoque,
     1 AS filial,
     CAST(CONCAT(COALESCE(c.NUMERO_NFCE, c.COO, c.ID), '-', c.ID_ECF_CAIXA) AS CHAR) AS documento,
+    c.ID as id_documento,
     CAST(p.ID AS CHAR) AS codigo,
     p.DESCRICAOPDV AS nome,
     CAST(CONCAT(c.DATA_VENDA, ' ', COALESCE(c.HORA_VENDA, '00:00:00')) AS DATETIME) AS datahora,
@@ -33,6 +34,7 @@ SELECT
     'Geral' AS local_estoque,
     1 AS filial,
     CAST(COALESCE(ne.numero, ne.chave, ne.id) AS CHAR) AS documento,
+    ne.id as id_documento,
     CAST(p.ID AS CHAR) AS codigo,
     COALESCE(nep.descricao_produto_ne, p.DESCRICAOPDV) AS nome,
     CAST(CONCAT(COALESCE(ne.data_chegada, ne.data_emissao), ' ', COALESCE(ne.hora_chegada, '00:00:00')) AS DATETIME) AS datahora,
@@ -57,4 +59,3 @@ FROM notas_entrada_produto nep
 INNER JOIN notas_entrada ne ON nep.id_nota_entrada = ne.id
 INNER JOIN produto p ON nep.id_produto = p.ID
 WHERE COALESCE(ne.data_chegada, ne.data_emissao) = %(data)s;
-

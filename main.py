@@ -8,52 +8,42 @@ from services.catalogo import CatalogoETL
 from services.contas_a_pagar import ContasAPagarETL
 from services.movimentacao_estoque import MovimentacaoEstoqueETL
 from services.nfe_processor import NFeProcessorETL
-from settings.db_config import get_source_config, get_target_config, G3_DATABASE
+from settings.db_config import G3_DATABASE, get_target_config
 
-# Initialize Sentry
 load_dotenv()
 sentry_sdk.init(
     dsn=os.getenv("SENTRY_DSN"),
     send_default_pii=True,
 )
 
+
 def run_vendas_daily_etl():
-    """Run the daily sales ETL for all missing dates"""
-    target_config = get_target_config()
-    etl = VendasDailyETL(G3_DATABASE, target_config)
+    etl = VendasDailyETL(G3_DATABASE, get_target_config())
     return etl.run_etl()
+
 
 def run_notas_fiscais_etl():
-    """Run the notas fiscais ETL (Monitoramento G3 + SEFAZ)"""
-    source_config = get_source_config()
-    target_config = get_target_config()
-    etl = NotasFiscaisETL(source_config, target_config)
+    etl = NotasFiscaisETL(G3_DATABASE, get_target_config())
     etl.run_etl()
+
 
 def run_nfe_processor_etl():
-    """Run the NFe XML processor ETL (Refinamento de Dados)"""
-    target_config = get_target_config()
-    etl = NFeProcessorETL(target_config)
+    etl = NFeProcessorETL(get_target_config())
     etl.run_etl()
+
 
 def run_catalogo_etl():
-    """Run the catalogo (product catalog) ETL"""
-    source_config = get_source_config()
-    target_config = get_target_config()
-    etl = CatalogoETL(source_config, target_config)
+    etl = CatalogoETL(G3_DATABASE, get_target_config())
     etl.run_etl()
 
+
 def run_contas_a_pagar_etl():
-    """Executa o ETL de contas a pagar (com UPSERT)"""
-    source_config = get_source_config()
-    target_config = get_target_config()
-    etl = ContasAPagarETL(source_config, target_config)
+    etl = ContasAPagarETL(G3_DATABASE, get_target_config())
     return etl.run_etl()
 
+
 def run_movimentacao_estoque_etl():
-    """Executa o ETL de movimentação de estoque para datas faltantes"""
-    target_config = get_target_config()
-    etl = MovimentacaoEstoqueETL(G3_DATABASE, target_config)
+    etl = MovimentacaoEstoqueETL(G3_DATABASE, get_target_config())
     return etl.run_etl()
 
 if __name__ == "__main__":

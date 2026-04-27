@@ -1,13 +1,12 @@
 import pandas as pd
 import os
 import psycopg2
-import logging
 from handlers.db_connection import DatabaseConnection
 from handlers.query_loader import get_etl_query, get_etl_config, load_query_from_file
 from handlers.log_handler import setup_logger
 from handlers.nfe_handler import NFeHandler
 from utils.data_transformers import clean_dataframe_nans
-from typing import Dict, Optional, List
+from typing import Dict
 
 class NotasFiscaisETL:
     def __init__(self, source_config: Dict, target_config: Dict):

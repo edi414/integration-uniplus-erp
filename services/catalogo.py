@@ -3,7 +3,7 @@ from handlers.db_connection import DatabaseConnection
 from handlers.query_loader import get_etl_query, get_etl_config
 from utils.data_transformers import clean_dataframe_nans
 from handlers.log_handler import setup_logger
-from typing import Dict, Optional
+from typing import Dict
 
 class CatalogoETL:
     def __init__(self, source_config: Dict, target_config: Dict):

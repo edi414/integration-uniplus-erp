@@ -5,7 +5,7 @@
         "table": "uniplus_vendas_pdvs",
         "query_file": "vendas_daily.sql",
         "missing_dates_query": "vendas_daily_missing_dates.sql",
-        "unique_columns": ["emissao", "hora", "documento", "v_liquido"],
+        "unique_columns": ["pdv", "filial", "id_documento"],
         "logic_check_missing_dates": ["emissao"]
     },
     

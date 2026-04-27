@@ -3,7 +3,7 @@ from handlers.db_connection import DatabaseConnection
 from utils.data_transformers import clean_dataframe_nans
 from handlers.query_loader import get_etl_query, get_etl_config, load_query_from_file
 from handlers.log_handler import setup_logger
-from typing import Dict, Optional
+from typing import Dict
 
 class VendasDailyETL:
     def __init__(self, source_config: Dict, target_config: Dict):
@@ -25,10 +25,9 @@ class VendasDailyETL:
             'emissao': 'emissao',
             'hora': 'hora',
             'troco': 'troco',
-            'serie/numero': 'documento',
+            'serie_numero': 'documento',
             'cliente': 'cliente',
             'cnpj_cpf': 'cnpj_cpf',
-            'ccf': 'ccf',
             'status_nfce': 'status_nfce',
             'valor_recebido': 'valor_recebido',
             'id_documento': 'id_documento'
@@ -46,9 +45,7 @@ class VendasDailyETL:
             if col in df.columns:
                 df[col] = pd.to_numeric(df[col], errors='coerce').round().astype('Int64')
         
-        # Add missing columns with default values
-        df['devolucao_troca'] = None
-        df['hora_final'] = None # No longer used, loading as NULL
+        df['hora_final'] = None
         
         # Convert data types to match target table
         # Numeric columns (18,2)
@@ -71,8 +68,8 @@ class VendasDailyETL:
         
         # Ensure all columns are present and in correct order
         columns = [
-            'pdv', 'filial', 'emissao', 'hora', 'documento', 'ccf',
-            'v_bruto', 'desconto', 'acrescimo', 'devolucao_troca', 'v_liquido', 'canc', 'cliente',
+            'pdv', 'filial', 'emissao', 'hora', 'documento',
+            'v_bruto', 'desconto', 'acrescimo', 'v_liquido', 'canc', 'cliente',
             'cnpj_cpf', 'finalizador', 'valor_finalizador', 'hora_final', 'troco',
             'status_nfce', 'valor_recebido', 'id_documento'
         ]

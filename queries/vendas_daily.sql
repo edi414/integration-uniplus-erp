@@ -19,7 +19,7 @@ SELECT
     evc.cpf_cnpj_cliente AS cnpj_cpf,
     evc.status_nfce,
     evc.valor_recebido,
-    CONCAT(IFNULL(evc.serie_nfce, ''), '/', IFNULL(evc.numero_nfce, '')) AS `serie/numero`,
+    CONCAT(IFNULL(evc.serie_nfce, ''), '/', IFNULL(evc.numero_nfce, '')) AS serie_numero,
     evc.troco,
     emp.descricao AS tipo_pagamento_principal,
     ettp_final.maior_valor

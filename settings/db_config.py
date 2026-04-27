@@ -22,6 +22,25 @@ BANCO_MERCADO = {
     "port": int(os.getenv("MERCADO_PORT", "5432")),
 }
 
+# PostgreSQL histórico do Unico (dados pré 01/04/2026)
+# Alias de UNICO_DATABASE — mantido por clareza semântica no script de auditoria
+UNICO_POSTGRES = {
+    "dbname": os.getenv("UNICO_DB", ""),
+    "user": os.getenv("UNICO_USER", ""),
+    "password": os.getenv("UNICO_PASSWORD", ""),
+    "host": os.getenv("UNICO_HOST", ""),
+    "port": int(os.getenv("UNICO_PORT", "")),
+}
+
+# MySQL G3 (sistema atual — dados a partir de 01/04/2026)
+G3_DATABASE = {
+    "dbname": os.getenv("G3_DB", ""),
+    "user": os.getenv("G3_USER", ""),
+    "password": os.getenv("G3_PASSWORD", ""),
+    "host": os.getenv("G3_HOST", ""),
+    "port": int(os.getenv("G3_PORT", "")),
+}
+
 def get_connection_config(database: str = "unico") -> Dict[str, Any]:
     """
     Get database connection configuration
@@ -36,8 +55,12 @@ def get_connection_config(database: str = "unico") -> Dict[str, Any]:
         return UNICO_DATABASE
     elif database.lower() == "mercado":
         return BANCO_MERCADO
+    elif database.lower() == "unico_postgres":
+        return UNICO_POSTGRES
+    elif database.lower() == "g3":
+        return G3_DATABASE
     else:
-        raise ValueError(f"Unknown database: {database}. Use 'unico' or 'mercado'")
+        raise ValueError(f"Unknown database: {database}. Use 'unico', 'mercado', 'unico_postgres' or 'g3'")
 
 # Default configuration (source database)
 def get_source_config() -> Dict[str, Any]:

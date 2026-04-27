@@ -8,7 +8,7 @@ from services.catalogo import CatalogoETL
 from services.contas_a_pagar import ContasAPagarETL
 from services.movimentacao_estoque import MovimentacaoEstoqueETL
 from services.nfe_processor import NFeProcessorETL
-from settings.db_config import get_source_config, get_target_config
+from settings.db_config import get_source_config, get_target_config, G3_DATABASE
 
 # Initialize Sentry
 load_dotenv()
@@ -19,9 +19,8 @@ sentry_sdk.init(
 
 def run_vendas_daily_etl():
     """Run the daily sales ETL for all missing dates"""
-    source_config = get_source_config()
     target_config = get_target_config()
-    etl = VendasDailyETL(source_config, target_config)
+    etl = VendasDailyETL(G3_DATABASE, target_config)
     return etl.run_etl()
 
 def run_notas_fiscais_etl():
@@ -53,9 +52,8 @@ def run_contas_a_pagar_etl():
 
 def run_movimentacao_estoque_etl():
     """Executa o ETL de movimentação de estoque para datas faltantes"""
-    source_config = get_source_config()
     target_config = get_target_config()
-    etl = MovimentacaoEstoqueETL(source_config, target_config)
+    etl = MovimentacaoEstoqueETL(G3_DATABASE, target_config)
     return etl.run_etl()
 
 if __name__ == "__main__":
@@ -64,14 +62,14 @@ if __name__ == "__main__":
     print(f"   Processados: {v_summary['processed']}, Falhas: {v_summary['failed']}")
     
     print("\n🚀 Iniciando Notas Fiscais ETL (Extração G3 + Download SEFAZ)...")
-    run_notas_fiscais_etl()
-    
-    # Delay solicitado pelo usuário para garantir independência/término de rede
-    print("\n⏳ Aguardando 60 segundos antes de processar os XMLs...")
-    time.sleep(60)
-    
-    print("\n🚀 Iniciando Refinamento de Dados XML (NFe Processor)...")
-    run_nfe_processor_etl()
+    try:
+        run_notas_fiscais_etl()
+        print("\n⏳ Aguardando 60 segundos antes de processar os XMLs...")
+        time.sleep(60)
+        print("\n🚀 Iniciando Refinamento de Dados XML (NFe Processor)...")
+        run_nfe_processor_etl()
+    except Exception as e:
+        print(f"   [WARN] Notas Fiscais/NFe Processor falhou: {e}")
     
     print("\n🚀 Iniciando Catalogo ETL (Sincronização de Produtos)...")
     run_catalogo_etl()

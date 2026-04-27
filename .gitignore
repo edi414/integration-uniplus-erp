@@ -199,3 +199,5 @@ cython_debug/
 
 CERTIFICADO MERCADO POPULAR.pfx
 certificado_supermercadopopular.pfx
+.claude
+docs/

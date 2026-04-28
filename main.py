@@ -48,29 +48,29 @@ def run_movimentacao_estoque_etl():
     return etl.run_etl()
 
 if __name__ == "__main__":
-    app_logger.info("🚀 Iniciando Vendas Daily ETL...")
+    app_logger.info("Iniciando Vendas Daily ETL...")
     v_summary = run_vendas_daily_etl()
     app_logger.info(f"   Processados: {v_summary['processed']}, Falhas: {v_summary['failed']}")
-    
-    app_logger.info("🚀 Iniciando Notas Fiscais ETL (Extração G3 + Download SEFAZ)...")
+
+    app_logger.info("Iniciando Notas Fiscais ETL (Extracao G3 + Download SEFAZ)...")
     try:
         run_notas_fiscais_etl()
-        app_logger.info("⏳ Aguardando 60 segundos antes de processar os XMLs...")
+        app_logger.info("Aguardando 60 segundos antes de processar os XMLs...")
         time.sleep(60)
-        app_logger.info("🚀 Iniciando Refinamento de Dados XML (NFe Processor)...")
+        app_logger.info("Iniciando Refinamento de Dados XML (NFe Processor)...")
         run_nfe_processor_etl()
     except Exception as e:
         app_logger.warning(f"   [WARN] Notas Fiscais/NFe Processor falhou: {e}")
-    
-    app_logger.info("🚀 Iniciando Catalogo ETL (Sincronização de Produtos)...")
+
+    app_logger.info("Iniciando Catalogo ETL (Sincronizacao de Produtos)...")
     run_catalogo_etl()
 
-    app_logger.info("🚀 Iniciando Contas a Pagar ETL...")
+    app_logger.info("Iniciando Contas a Pagar ETL...")
     cap_summary = run_contas_a_pagar_etl()
     app_logger.info(f"   Registros processados: {cap_summary['processed']}")
 
-    app_logger.info("🚀 Iniciando Movimentação de Estoque ETL...")
+    app_logger.info("Iniciando Movimentacao de Estoque ETL...")
     est_summary = run_movimentacao_estoque_etl()
     app_logger.info(f"   Processados: {est_summary['processed']}, Falhas: {est_summary['failed']}")
 
-    app_logger.info("✅ Todos os processos ETL foram finalizados com sucesso.")
+    app_logger.info("Todos os processos ETL foram finalizados com sucesso.")

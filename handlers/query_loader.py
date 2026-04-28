@@ -2,6 +2,9 @@ import os
 import json
 from typing import Dict, Any
 
+# Resolve the project root once, regardless of the working directory
+_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
 def load_etl_config() -> Dict[str, Any]:
     """
     Load ETL configuration from config_etl.json
@@ -9,7 +12,7 @@ def load_etl_config() -> Dict[str, Any]:
     Returns:
         Dictionary with ETL configurations
     """
-    config_path = os.path.join('settings', 'config_etl.json')
+    config_path = os.path.join(_PROJECT_ROOT, 'settings', 'config_etl.json')
     with open(config_path, 'r', encoding='utf-8') as f:
         return json.load(f)
 
@@ -23,7 +26,7 @@ def load_query_from_file(query_file: str) -> str:
     Returns:
         SQL query as string
     """
-    query_path = os.path.join('queries', query_file)
+    query_path = os.path.join(_PROJECT_ROOT, 'queries', query_file)
     
     if not os.path.exists(query_path):
         raise FileNotFoundError(f"Query file not found: {query_path}")

@@ -61,6 +61,7 @@ class MovimentacaoEstoqueETL:
                 "tipo_movimentacao",
                 "nome",
                 "cfop",
+                "chave_nfe",
             ]
             for col in text_columns:
                 if col in df.columns:
@@ -99,6 +100,7 @@ class MovimentacaoEstoqueETL:
                 "cfop",
                 "un",
                 "id_documento",
+                "chave_nfe",
             ]
             
             existing_columns = [c for c in columns if c in df.columns]

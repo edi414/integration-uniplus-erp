@@ -327,7 +327,7 @@ def _transform_unico(df: pd.DataFrame) -> pd.DataFrame:
     if "datahora" in df.columns:
         df["datahora"] = pd.to_datetime(df["datahora"], errors="coerce")
 
-    text_columns = ["local_estoque", "documento", "codigo", "un", "tipo_movimentacao", "nome", "cfop"]
+    text_columns = ["local_estoque", "documento", "codigo", "un", "tipo_movimentacao", "nome", "cfop", "chave_nfe"]
     for col in text_columns:
         if col in df.columns:
             df[col] = df[col].astype(str)
@@ -343,7 +343,7 @@ def _transform_unico(df: pd.DataFrame) -> pd.DataFrame:
         "currenttimemillis", "tipodocumento", "qtd", "tipo_movimentacao",
         "valortotal", "precoultimacompra", "custoaquisicao", "customedio",
         "icms", "icms_st", "ippt", "pis_cofins", "ipi", "outros_impostos",
-        "comissao", "cfop", "un", "id_documento",
+        "comissao", "cfop", "un", "id_documento", "chave_nfe",
     ]
     existing = [c for c in columns if c in df.columns]
     return clean_dataframe_nans(df[existing])

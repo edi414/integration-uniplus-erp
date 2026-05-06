@@ -33,6 +33,10 @@ SELECT
         WHEN m.tipodocumento::text IN ('1') THEN 'S'
         ELSE NULL
     END AS tipo_movimentacao,
+    CASE
+        WHEN m.tipodocumento::text IN ('2', '3') THEN n.chavenfe
+        ELSE NULL
+    END AS chave_nfe,
     m.valortotal,
     m.precoultimacompra,
     m.custoaquisicao,

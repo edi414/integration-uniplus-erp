@@ -9,6 +9,7 @@ Uso:
   python scripts/audit_movimentacao_estoque.py                  # auditoria + sync
   python scripts/audit_movimentacao_estoque.py --audit          # só relatório, sem modificar dados
   python scripts/audit_movimentacao_estoque.py --fix-id-documento  # corrige id_documento de todos os registros Unico
+  python scripts/audit_movimentacao_estoque.py --fix-chave-nfe-g3  # reprocessa todas as datas G3 para popular chave_nfe
 """
 
 import sys
@@ -444,6 +445,35 @@ def fix_id_documento_unico(unico_pg: DatabaseConnection, mercado: DatabaseConnec
 
 
 # ---------------------------------------------------------------------------
+# Fix chave_nfe — reprocessa todas as datas G3 para popular chave_nfe
+# ---------------------------------------------------------------------------
+
+def fix_chave_nfe_g3(mercado: DatabaseConnection) -> dict:
+    """
+    Reprocessa todas as datas G3 via UPSERT para sobrescrever chave_nfe com o valor
+    correto (notas_entrada.chave). Só afeta entradas (tipodocumento=55).
+    """
+    _section("Fix — Popular chave_nfe em todos os registros G3")
+
+    query_datas = """
+        SELECT DISTINCT DATE(datahora) AS data
+        FROM movimentacao_estoque
+        WHERE tipodocumento IN (55, 65)
+        ORDER BY 1;
+    """
+    df_datas = mercado.get_data(query_datas)
+
+    if df_datas.empty:
+        _warn("Nenhum dado G3 encontrado no destino.")
+        return {"processed": [], "failed": []}
+
+    dates = df_datas["data"].astype(str).tolist()
+    _info(f"{len(dates)} datas G3 a reprocessar.")
+
+    return sync_g3(dates)
+
+
+# ---------------------------------------------------------------------------
 # Relatório final
 # ---------------------------------------------------------------------------
 
@@ -472,6 +502,12 @@ def main() -> None:
         dest="fix_id_documento",
         help="Reprocessa todas as datas Unico para corrigir id_documento (idoriginal).",
     )
+    parser.add_argument(
+        "--fix-chave-nfe-g3",
+        action="store_true",
+        dest="fix_chave_nfe_g3",
+        help="Reprocessa todas as datas G3 para popular chave_nfe nas entradas.",
+    )
     args = parser.parse_args()
 
     mercado = _mercado_conn()
@@ -483,6 +519,18 @@ def main() -> None:
         _info("Modo: FIX id_documento (reprocessa todas as datas Unico)")
         results = {}
         r = fix_id_documento_unico(unico_pg, mercado)
+        results["datas_reprocessadas"] = len(r["processed"])
+        results["datas_falhou"] = len(r["failed"])
+        if r["failed"]:
+            results["falhas"] = r["failed"]
+        _print_summary(results)
+        return
+
+    # Modo especial: popular chave_nfe em todos os registros G3
+    if args.fix_chave_nfe_g3:
+        _info("Modo: FIX chave_nfe G3 (reprocessa todas as datas G3)")
+        results = {}
+        r = fix_chave_nfe_g3(mercado)
         results["datas_reprocessadas"] = len(r["processed"])
         results["datas_falhou"] = len(r["failed"])
         if r["failed"]:

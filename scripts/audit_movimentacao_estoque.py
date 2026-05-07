@@ -2,14 +2,52 @@
 Auditoria e sincronização histórica da tabela movimentacao_estoque.
 
 Fontes:
-  - Unico (PostgreSQL): dados pré 01/04/2026
-  - G3 (MySQL):         dados a partir de 01/04/2026
+  - Unico (PostgreSQL): dados pré 01/04/2026, tipodocumento IN (1, 2, 3)
+  - G3 (MySQL):         dados a partir de 01/04/2026, tipodocumento IN (55, 65)
 
-Uso:
-  python scripts/audit_movimentacao_estoque.py                  # auditoria + sync
-  python scripts/audit_movimentacao_estoque.py --audit          # só relatório, sem modificar dados
-  python scripts/audit_movimentacao_estoque.py --fix-id-documento  # corrige id_documento de todos os registros Unico
-  python scripts/audit_movimentacao_estoque.py --fix-chave-nfe-g3  # reprocessa todas as datas G3 para popular chave_nfe
+# ─── PREMISSAS DA TABELA ────────────────────────────────────────────────────
+#
+# P1. tipodocumento discrimina o sistema de origem e o tipo de documento:
+#       1  = NFC-e PDV (Unico)   → tipo_movimentacao sempre 'S'
+#       2  = NF-e entrada 55 (Unico) → tipo_movimentacao sempre 'E'
+#       3  = CT-e/NF-e 57 (Unico)   → tipo_movimentacao sempre 'E'
+#       55 = NF-e entrada (G3)      → tipo_movimentacao 'E' ou 'C'
+#       65 = NFC-e PDV (G3)         → tipo_movimentacao 'S' ou 'C'
+#       negativo (-2,-3,-4,-6,-15) = ajuste interno Unico, sem documento fiscal
+#
+# P2. tipo_movimentacao discrimina o efeito sobre o estoque:
+#       'E' = entrada  → aumenta saldo
+#       'S' = saída    → reduz saldo
+#       'C' = cancelamento → NÃO entra no cálculo de saldo
+#       NULL → aparece só junto a tipodocumento negativo (ajuste interno)
+#
+# P3. chave_nfe é obrigatória em entradas com NF-e eletrônica:
+#       Esperado preenchido:  tipodocumento IN (2, 55) AND tipo_movimentacao = 'E'
+#       Esperado NULL:        tipodocumento = 3 (CT-e — Unico não armazena chave)
+#                             tipodocumento IN (1, 65) (NFC-e — venda, sem chave)
+#                             tipo_movimentacao = 'C' (cancelamento)
+#       Inesperado NULL:      tipodocumento IN (2, 55) AND tipo_movimentacao = 'E'
+#                             → gaps reais que esta auditoria quantifica
+#
+# P4. id_documento não é globalmente único — é chave de negócio por período:
+#       Unico (tipodocumento 1,2,3): operacao.id
+#       G3 vendas (tipodocumento 65): ecf_venda_cabecalho.id
+#       G3 entradas (tipodocumento 55): notas_entrada.id
+#       Join correto: ON me.id_documento = v.id_documento
+#                     AND me.tipodocumento IN (<conjunto por sistema>)
+#
+# P5. Vendas sem movimentação são normais para o Unico legado:
+#       ~2.464 operações PDV registradas sem movimentoestoque correspondente no sistema
+#       de origem — não é falha de ETL, é limitação do Unico.
+#       No G3, vendas sem match são apenas cupons cancelados ou vendas do dia atual.
+#
+# ─── COMANDOS DISPONÍVEIS ────────────────────────────────────────────────────
+#
+#  python scripts/audit_movimentacao_estoque.py          # auditoria + sync de datas faltando
+#  python scripts/audit_movimentacao_estoque.py --audit  # apenas relatório, sem modificar dados
+#  python scripts/audit_movimentacao_estoque.py --fix-id-documento   # reprocessa todos Unico (id_documento)
+#  python scripts/audit_movimentacao_estoque.py --fix-chave-nfe-g3   # reprocessa todos G3 (chave_nfe)
+#  python scripts/audit_movimentacao_estoque.py --fix-chave-nfe-unico # reprocessa só datas Unico com chave_nfe NULL
 """
 
 import sys
@@ -19,7 +57,6 @@ from pathlib import Path
 
 import pandas as pd
 
-# Permite importar os módulos do projeto a partir da raiz
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from handlers.db_connection import DatabaseConnection
@@ -31,6 +68,7 @@ from utils.data_transformers import clean_dataframe_nans
 
 CUTOFF_DATE = date(2026, 4, 1)
 
+# Chave única do UPSERT — id_documento e chave_nfe não fazem parte
 UNIQUE_COLUMNS = [
     "datahora", "codigo", "documento",
     "tipodocumento", "tipo_movimentacao", "currenttimemillis",
@@ -40,8 +78,31 @@ logger = setup_logger("audit_movimentacao_estoque", log_file="logs/audit_movimen
 
 
 # ---------------------------------------------------------------------------
-# Helpers
+# Helpers de output
 # ---------------------------------------------------------------------------
+
+def _section(title: str) -> None:
+    border = "=" * 60
+    logger.info(border)
+    logger.info(f"  {title}")
+    logger.info(border)
+    print(f"\n{border}\n  {title}\n{border}")
+
+
+def _ok(msg: str) -> None:
+    logger.info(f"[OK]   {msg}")
+    print(f"  [OK]   {msg}")
+
+
+def _warn(msg: str) -> None:
+    logger.warning(f"[WARN] {msg}")
+    print(f"  [WARN] {msg}")
+
+
+def _info(msg: str) -> None:
+    logger.info(msg)
+    print(f"  {msg}")
+
 
 def _mercado_conn() -> DatabaseConnection:
     return DatabaseConnection(BANCO_MERCADO)
@@ -55,37 +116,257 @@ def _g3_conn() -> DatabaseConnection:
     return DatabaseConnection(G3_DATABASE)
 
 
-def _section(title: str) -> None:
-    border = "=" * 60
-    logger.info(border)
-    logger.info(f"  {title}")
-    logger.info(border)
-    print(f"\n{border}\n  {title}\n{border}")
+# ---------------------------------------------------------------------------
+# Fase 1 — Volume geral e cobertura por sistema
+# ---------------------------------------------------------------------------
 
+def audit_volume(mercado: DatabaseConnection) -> None:
+    _section("Fase 1 — Volume geral por sistema e tipo_movimentacao")
 
-def _ok(msg: str) -> None:
-    logger.info(f"[OK] {msg}")
-    print(f"  [OK] {msg}")
+    # P1: operacionais = tipodocumento > 0
+    q = """
+        SELECT
+            CASE
+                WHEN tipodocumento IN (1,2,3)   THEN 'Unico'
+                WHEN tipodocumento IN (55,65)    THEN 'G3'
+                WHEN tipodocumento < 0           THEN 'Ajuste interno'
+                ELSE 'Desconhecido'
+            END AS sistema,
+            tipodocumento,
+            tipo_movimentacao,
+            COUNT(*) AS total
+        FROM movimentacao_estoque
+        GROUP BY 1, 2, 3
+        ORDER BY 1, 2, 3;
+    """
+    df = mercado.get_data(q)
+    _info(df.to_string(index=False))
 
+    total = int(df["total"].sum())
+    op = int(df.loc[df["tipodocumento"].isin([1, 2, 3, 55, 65]), "total"].sum())
+    adj = int(df.loc[df["tipodocumento"] < 0, "total"].sum())
+    _info(f"\nTotal geral: {total:,}  |  Operacionais: {op:,}  |  Ajustes internos: {adj:,}")
 
-def _warn(msg: str) -> None:
-    logger.warning(f"[WARN] {msg}")
-    print(f"  [WARN] {msg}")
-
-
-def _info(msg: str) -> None:
-    logger.info(msg)
-    print(f"  {msg}")
+    # Premissa P1: ajustes internos têm tipo_movimentacao NULL
+    df_adj = df[df["tipodocumento"] < 0]
+    if df_adj.empty or df_adj["tipo_movimentacao"].isna().all() or (df_adj["tipo_movimentacao"] == "None").all():
+        _ok("P1 confirmada: ajustes internos têm tipo_movimentacao NULL.")
+    else:
+        _warn("P1 VIOLADA: ajuste interno com tipo_movimentacao não-nulo encontrado!")
+        _info(df_adj[df_adj["tipo_movimentacao"].notna()].to_string(index=False))
 
 
 # ---------------------------------------------------------------------------
-# Fase 1 — Duplicatas no destino
+# Fase 2 — Saídas: vendas sem movimentação correspondente (P5)
+# ---------------------------------------------------------------------------
+
+def audit_saidas_sem_mov(mercado: DatabaseConnection) -> None:
+    _section("Fase 2 — Saídas: vendas PDV sem movimentação correspondente (premissa P5)")
+
+    # Unico: join por id_documento + tipodocumento IN (1,2,3)
+    q_unico = """
+        SELECT
+            'Unico' AS sistema,
+            DATE_TRUNC('year', v.emissao)::date AS ano,
+            COUNT(*) AS vendas_sem_mov
+        FROM uniplus_vendas_pdvs v
+        LEFT JOIN movimentacao_estoque me
+            ON ABS(v.id_documento) = me.id_documento
+           AND me.tipo_movimentacao = 'S'
+           AND me.tipodocumento IN (1, 2, 3)
+        WHERE me.id_documento IS NULL
+          AND v.canc = false
+          AND v.emissao < '2026-04-01'
+        GROUP BY 1, 2
+        ORDER BY 2;
+    """
+    df_unico = mercado.get_data(q_unico)
+
+    # G3: join por id_documento + tipodocumento IN (55, 65)
+    q_g3 = """
+        SELECT
+            'G3' AS sistema,
+            DATE_TRUNC('year', v.emissao)::date AS ano,
+            COUNT(*) AS vendas_sem_mov
+        FROM uniplus_vendas_pdvs v
+        LEFT JOIN movimentacao_estoque me
+            ON v.id_documento = me.id_documento
+           AND me.tipo_movimentacao = 'S'
+           AND me.tipodocumento IN (55, 65)
+        WHERE me.id_documento IS NULL
+          AND v.canc = false
+          AND v.emissao >= '2026-04-01'
+        GROUP BY 1, 2
+        ORDER BY 2;
+    """
+    df_g3 = mercado.get_data(q_g3)
+
+    df = pd.concat([df_unico, df_g3], ignore_index=True)
+
+    if df.empty or df["vendas_sem_mov"].sum() == 0:
+        _ok("Todas as vendas têm movimentação de saída correspondente.")
+        return
+
+    total_unico = int(df_unico["vendas_sem_mov"].sum()) if not df_unico.empty else 0
+    total_g3 = int(df_g3["vendas_sem_mov"].sum()) if not df_g3.empty else 0
+    _info(df.to_string(index=False))
+    _info(f"\nTotal Unico sem mov: {total_unico:,}  |  Total G3 sem mov: {total_g3:,}")
+
+    if total_unico <= 2464:
+        _ok(f"P5 confirmada: {total_unico:,} vendas Unico sem mov — dentro do limite esperado (~2.464).")
+    else:
+        _warn(f"P5 VIOLADA: {total_unico:,} vendas Unico sem mov excedem o esperado (~2.464).")
+
+    if total_g3 > 0:
+        # G3 gaps precisam ser explicados
+        q_g3_detail = """
+            SELECT v.canc, me.tipo_movimentacao,
+                   COUNT(*) AS cnt
+            FROM uniplus_vendas_pdvs v
+            LEFT JOIN movimentacao_estoque me
+                ON v.id_documento = me.id_documento
+               AND me.tipodocumento IN (55, 65)
+            WHERE v.emissao >= '2026-04-01'
+            GROUP BY 1, 2
+            ORDER BY 3 DESC;
+        """
+        df_detail = mercado.get_data(q_g3_detail)
+        _info("\nDetalhamento G3 (vendas sem saída):")
+        _info(df_detail.to_string(index=False))
+
+
+# ---------------------------------------------------------------------------
+# Fase 3 — Entradas: cobertura de chave_nfe (P3)
+# ---------------------------------------------------------------------------
+
+def audit_chave_nfe(mercado: DatabaseConnection) -> None:
+    _section("Fase 3 — Entradas: cobertura de chave_nfe (premissa P3)")
+
+    q = """
+        SELECT
+            CASE
+                WHEN tipodocumento IN (2,3) THEN 'Unico'
+                WHEN tipodocumento = 55     THEN 'G3'
+            END AS sistema,
+            tipodocumento,
+            tipo_movimentacao,
+            COUNT(*) AS total,
+            COUNT(chave_nfe) AS com_chave,
+            COUNT(*) - COUNT(chave_nfe) AS sem_chave,
+            ROUND(100.0 * COUNT(chave_nfe) / COUNT(*), 1) AS pct_cobertura
+        FROM movimentacao_estoque
+        WHERE tipodocumento IN (2, 3, 55)
+        GROUP BY 1, 2, 3
+        ORDER BY 1, 2, 3;
+    """
+    df = mercado.get_data(q)
+    _info(df.to_string(index=False))
+
+    # P3: tipodocumento=3 (CT-e) deve ter chave_nfe NULL — isso é normal
+    df_cte = df[(df["tipodocumento"] == 3) & (df["tipo_movimentacao"] == "E")]
+    if not df_cte.empty:
+        cte_sem = int(df_cte["sem_chave"].sum())
+        cte_total = int(df_cte["total"].sum())
+        _ok(f"P3 CT-e: {cte_sem:,}/{cte_total:,} registros tipodocumento=3 sem chave_nfe — estruturalmente correto (Unico não armazena chave CT-e).")
+
+    # Gaps reais: tipodocumento=2 ou 55 com tipo_movimentacao='E' sem chave
+    df_gaps = df[
+        (df["tipodocumento"].isin([2, 55])) &
+        (df["tipo_movimentacao"] == "E") &
+        (df["sem_chave"] > 0)
+    ]
+    if df_gaps.empty:
+        _ok("P3 confirmada: todas as entradas NF-e (tipodoc 2 e 55) têm chave_nfe preenchida.")
+    else:
+        for _, row in df_gaps.iterrows():
+            _warn(f"P3 GAP: tipodocumento={row['tipodocumento']} sistema={row['sistema']} — {int(row['sem_chave']):,} entradas sem chave_nfe ({row['pct_cobertura']}% cobertura)")
+
+    # Investiga os gaps detalhadamente
+    q_gap_detail = """
+        SELECT
+            tipodocumento,
+            tipo_movimentacao,
+            id_documento IS NOT NULL AS tem_id_documento,
+            COUNT(*) AS cnt
+        FROM movimentacao_estoque
+        WHERE tipodocumento IN (2, 55)
+          AND tipo_movimentacao = 'E'
+          AND chave_nfe IS NULL
+        GROUP BY 1, 2, 3
+        ORDER BY 1, 3;
+    """
+    df_detail = mercado.get_data(q_gap_detail)
+    if not df_detail.empty:
+        _info("\nDetalhamento dos gaps (tipodoc 2 e 55 sem chave_nfe):")
+        _info(df_detail.to_string(index=False))
+
+    # Entradas canceladas (tipo_movimentacao='C') sem chave_nfe — P3 aceita NULL aqui
+    q_cancel = """
+        SELECT tipodocumento, tipo_movimentacao, COUNT(*) AS cnt,
+               COUNT(chave_nfe) AS com_chave
+        FROM movimentacao_estoque
+        WHERE tipodocumento IN (2, 3, 55)
+          AND tipo_movimentacao = 'C'
+        GROUP BY 1, 2;
+    """
+    df_cancel = mercado.get_data(q_cancel)
+    if not df_cancel.empty:
+        _info("\nEntradas canceladas (tipo_movimentacao='C') — chave_nfe esperada mas não crítica:")
+        _info(df_cancel.to_string(index=False))
+
+
+# ---------------------------------------------------------------------------
+# Fase 4 — id_documento: integridade e cobertura (P4)
+# ---------------------------------------------------------------------------
+
+def audit_id_documento(mercado: DatabaseConnection) -> None:
+    _section("Fase 4 — id_documento: integridade por sistema (premissa P4)")
+
+    q = """
+        SELECT
+            CASE
+                WHEN tipodocumento IN (1,2,3) THEN 'Unico'
+                WHEN tipodocumento IN (55,65) THEN 'G3'
+            END AS sistema,
+            tipodocumento,
+            tipo_movimentacao,
+            COUNT(*) AS total,
+            COUNT(id_documento) AS com_id,
+            COUNT(*) - COUNT(id_documento) AS sem_id,
+            ROUND(100.0 * COUNT(id_documento) / COUNT(*), 1) AS pct_cobertura
+        FROM movimentacao_estoque
+        WHERE tipodocumento IN (1, 2, 3, 55, 65)
+        GROUP BY 1, 2, 3
+        ORDER BY 1, 2, 3;
+    """
+    df = mercado.get_data(q)
+    _info(df.to_string(index=False))
+
+    # Registros históricos Unico sem id_documento — esperado (~1.7M pré-backfill)
+    df_unico_sem_id = df[
+        (df["tipodocumento"].isin([1, 2, 3])) & (df["sem_id"] > 0)
+    ]
+    if not df_unico_sem_id.empty:
+        total_sem = int(df_unico_sem_id["sem_id"].sum())
+        _warn(f"P4 INFO: {total_sem:,} registros Unico sem id_documento (migrados antes do campo existir — esperado para datas < 2021-06-01).")
+    else:
+        _ok("P4: todos os registros Unico operacionais têm id_documento.")
+
+    df_g3_sem_id = df[(df["tipodocumento"].isin([55, 65])) & (df["sem_id"] > 0)]
+    if not df_g3_sem_id.empty:
+        _warn(f"P4 INESPERADO: {int(df_g3_sem_id['sem_id'].sum()):,} registros G3 sem id_documento!")
+    else:
+        _ok("P4: todos os registros G3 têm id_documento.")
+
+
+# ---------------------------------------------------------------------------
+# Fase 5 — Duplicatas (P4 / chave única do UPSERT)
 # ---------------------------------------------------------------------------
 
 def audit_duplicates(mercado: DatabaseConnection, sync: bool) -> int:
-    _section("Fase 1 — Duplicatas na tabela destino")
+    _section("Fase 5 — Duplicatas na chave única do UPSERT")
 
-    query = """
+    q = """
         SELECT datahora, codigo, documento, tipodocumento, tipo_movimentacao,
                currenttimemillis, COUNT(*) AS cnt
         FROM movimentacao_estoque
@@ -93,31 +374,40 @@ def audit_duplicates(mercado: DatabaseConnection, sync: bool) -> int:
         HAVING COUNT(*) > 1
         ORDER BY datahora;
     """
-    df = mercado.get_data(query)
+    df = mercado.get_data(q)
 
     if df.empty:
-        _ok("Nenhuma duplicata encontrada.")
+        _ok("Nenhuma duplicata encontrada — chave única íntegra.")
         return 0
 
     total_dup_groups = len(df)
     total_dup_rows = int(df["cnt"].sum()) - total_dup_groups
-    _warn(f"{total_dup_groups} grupos duplicados encontrados ({total_dup_rows} linhas extras).")
-    _info(df.to_string(index=False))
+    _warn(f"{total_dup_groups} grupos duplicados ({total_dup_rows} linhas extras).")
+    _info(df.head(20).to_string(index=False))
 
     if sync:
-        _info("Removendo duplicatas (mantendo o registro com menor ctid por grupo)...")
-        dedup_query = """
+        _info("Removendo duplicatas (DELETE cirúrgico — só grupos com cnt > 1)...")
+        # ROW_NUMBER() sobre a tabela inteira — única forma segura com NULLs na chave.
+        # (IN com tuplas contendo NULL retorna NULL, não TRUE — zero rows seriam deletadas.)
+        dedup_q = """
             DELETE FROM movimentacao_estoque
-            WHERE ctid NOT IN (
-                SELECT MIN(ctid)
-                FROM movimentacao_estoque
-                GROUP BY datahora, codigo, documento, tipodocumento, tipo_movimentacao, currenttimemillis
+            WHERE ctid IN (
+                SELECT ctid FROM (
+                    SELECT ctid,
+                           ROW_NUMBER() OVER (
+                               PARTITION BY datahora, codigo, documento,
+                                            tipodocumento, tipo_movimentacao, currenttimemillis
+                               ORDER BY ctid
+                           ) AS rn
+                    FROM movimentacao_estoque
+                ) sub
+                WHERE rn > 1
             );
         """
         mercado.connect()
         try:
             cursor = mercado.connection.cursor()
-            cursor.execute(dedup_query)
+            cursor.execute(dedup_q)
             deleted = cursor.rowcount
             mercado.connection.commit()
             cursor.close()
@@ -133,113 +423,71 @@ def audit_duplicates(mercado: DatabaseConnection, sync: bool) -> int:
 
 
 # ---------------------------------------------------------------------------
-# Fase 2 — Verificar constraint UNIQUE no banco destino
+# Fase 6 — Constraint UNIQUE no destino
 # ---------------------------------------------------------------------------
 
 def audit_unique_constraint(mercado: DatabaseConnection) -> bool:
-    _section("Fase 2 — Constraint UNIQUE no banco destino")
+    _section("Fase 6 — Constraint UNIQUE no banco destino")
 
-    query = """
+    q = """
         SELECT tc.constraint_name, kcu.column_name
         FROM information_schema.table_constraints tc
         JOIN information_schema.key_column_usage kcu
             ON tc.constraint_name = kcu.constraint_name
-            AND tc.table_schema = kcu.table_schema
+           AND tc.table_schema = kcu.table_schema
         WHERE tc.table_name = 'movimentacao_estoque'
           AND tc.table_schema = 'public'
           AND tc.constraint_type IN ('UNIQUE', 'PRIMARY KEY')
         ORDER BY tc.constraint_name, kcu.ordinal_position;
     """
-    df = mercado.get_data(query)
+    df = mercado.get_data(q)
 
     if df.empty:
-        _warn("Nenhuma constraint UNIQUE ou PRIMARY KEY encontrada na tabela movimentacao_estoque!")
-        _warn("Recomenda-se criar: UNIQUE (datahora, codigo, documento, tipodocumento, tipo_movimentacao, currenttimemillis)")
-        _warn("SQL sugerido:")
-        _warn("  CREATE UNIQUE INDEX IF NOT EXISTS uq_movimentacao_estoque")
-        _warn("    ON public.movimentacao_estoque")
-        _warn("    (datahora, codigo, documento, tipodocumento, tipo_movimentacao, currenttimemillis);")
+        _warn("Nenhuma constraint UNIQUE encontrada!")
+        _warn("Sugestão: CREATE UNIQUE INDEX IF NOT EXISTS uq_movimentacao_estoque")
+        _warn("  ON public.movimentacao_estoque (datahora, codigo, documento,")
+        _warn("  tipodocumento, tipo_movimentacao, currenttimemillis);")
         return False
 
-    _info("Constraints encontradas:")
     _info(df.to_string(index=False))
-
     constraint_cols = set(df["column_name"].tolist())
     expected = set(UNIQUE_COLUMNS)
     if expected.issubset(constraint_cols):
-        _ok("Constraint UNIQUE cobre todas as colunas esperadas.")
+        _ok("Constraint cobre todas as colunas esperadas.")
         return True
-    else:
-        missing = expected - constraint_cols
-        _warn(f"Colunas esperadas ausentes da constraint: {missing}")
-        return False
+
+    _warn(f"Colunas faltando na constraint: {expected - constraint_cols}")
+    return False
 
 
 # ---------------------------------------------------------------------------
-# Fase 3 — Vendas sem movimentação correspondente
-# ---------------------------------------------------------------------------
-
-def audit_vendas_sem_mov(mercado: DatabaseConnection) -> pd.DataFrame:
-    _section("Fase 3 — Vendas sem movimentação de saída correspondente")
-
-    query = """
-        SELECT v.emissao, COUNT(*) AS vendas_sem_mov
-        FROM uniplus_vendas_pdvs v
-        LEFT JOIN movimentacao_estoque me
-            ON me.id_documento = v.id_documento
-            AND me.tipo_movimentacao = 'S'
-        WHERE me.id_documento IS NULL
-          AND v.canc = false
-        GROUP BY v.emissao
-        ORDER BY v.emissao;
-    """
-    df = mercado.get_data(query)
-
-    if df.empty:
-        _ok("Todas as vendas possuem movimentação de saída correspondente.")
-    else:
-        total = int(df["vendas_sem_mov"].sum())
-        _warn(f"{total} vendas sem movimentação de saída em {len(df)} datas:")
-        _info(df.to_string(index=False))
-
-    return df
-
-
-# ---------------------------------------------------------------------------
-# Fase 4 — Datas faltando (fonte da verdade = bancos de origem)
+# Fase 7 — Datas faltando no destino vs. fontes de origem
 # ---------------------------------------------------------------------------
 
 def get_missing_dates_unico(unico_pg: DatabaseConnection, mercado: DatabaseConnection) -> list:
-    _section("Fase 4a — Datas faltando no destino (fonte: Unico pré 01/04/2026)")
+    _section("Fase 7a — Datas faltando (fonte: Unico pré 01/04/2026)")
 
-    # Datas disponíveis no Unico
-    query_unico = """
+    q_unico = """
         SELECT DISTINCT DATE(m.datahora) AS data_disponivel
         FROM public.movimentoestoque m
         WHERE DATE(m.datahora) < '2026-04-01'
           AND m.cancelado = 0
         ORDER BY 1;
     """
-    df_unico = unico_pg.get_data(query_unico)
+    df_unico = unico_pg.get_data(q_unico)
 
-    if df_unico.empty:
-        _info("Nenhum dado encontrado no Unico para o período pré 01/04/2026.")
-        return []
-
-    # Datas já carregadas no destino para esse período
-    query_destino = """
+    q_destino = """
         SELECT DISTINCT DATE(datahora) AS data_carregada
         FROM movimentacao_estoque
         WHERE datahora < '2026-04-01';
     """
-    df_destino = mercado.get_data(query_destino)
+    df_destino = mercado.get_data(q_destino)
 
-    datas_unico = set(df_unico["data_disponivel"].astype(str).tolist())
+    datas_unico = set(df_unico["data_disponivel"].astype(str).tolist()) if not df_unico.empty else set()
     datas_destino = set(df_destino["data_carregada"].astype(str).tolist()) if not df_destino.empty else set()
-
     faltando = sorted(datas_unico - datas_destino)
 
-    _info(f"Datas disponíveis no Unico:  {len(datas_unico)}")
+    _info(f"Datas disponíveis no Unico:   {len(datas_unico)}")
     _info(f"Datas no destino (pré corte): {len(datas_destino)}")
 
     if faltando:
@@ -253,43 +501,35 @@ def get_missing_dates_unico(unico_pg: DatabaseConnection, mercado: DatabaseConne
 
 
 def get_missing_dates_g3(g3: DatabaseConnection, mercado: DatabaseConnection) -> list:
-    _section("Fase 4b — Datas faltando no destino (fonte: G3 a partir de 01/04/2026)")
+    _section("Fase 7b — Datas faltando (fonte: G3 a partir de 01/04/2026)")
 
-    # Datas com movimentação de vendas no G3
-    query_vendas = """
+    q_vendas = """
         SELECT DISTINCT data_venda AS data_disponivel
         FROM ecf_venda_cabecalho
         WHERE data_venda >= '2026-04-01'
         ORDER BY 1;
     """
-    # Datas com notas de entrada no G3
-    query_notas = """
+    q_notas = """
         SELECT DISTINCT COALESCE(data_chegada, data_emissao) AS data_disponivel
         FROM notas_entrada
         WHERE COALESCE(data_chegada, data_emissao) >= '2026-04-01'
         ORDER BY 1;
     """
-    df_v = g3.get_data(query_vendas)
-    df_n = g3.get_data(query_notas)
+    df_v = g3.get_data(q_vendas)
+    df_n = g3.get_data(q_notas)
 
     datas_g3 = set()
     for df in [df_v, df_n]:
         if not df.empty:
             datas_g3.update(df["data_disponivel"].astype(str).tolist())
 
-    if not datas_g3:
-        _info("Nenhum dado encontrado no G3 para o período pós 01/04/2026.")
-        return []
-
-    # Datas já carregadas no destino para esse período
-    query_destino = """
+    q_destino = """
         SELECT DISTINCT DATE(datahora) AS data_carregada
         FROM movimentacao_estoque
         WHERE datahora >= '2026-04-01';
     """
-    df_destino = mercado.get_data(query_destino)
+    df_destino = mercado.get_data(q_destino)
     datas_destino = set(df_destino["data_carregada"].astype(str).tolist()) if not df_destino.empty else set()
-
     faltando = sorted(datas_g3 - datas_destino)
 
     _info(f"Datas disponíveis no G3:      {len(datas_g3)}")
@@ -310,32 +550,29 @@ def get_missing_dates_g3(g3: DatabaseConnection, mercado: DatabaseConnection) ->
 # ---------------------------------------------------------------------------
 
 def _transform_unico(df: pd.DataFrame) -> pd.DataFrame:
-    """Aplica as mesmas transformações do MovimentacaoEstoqueETL."""
     if "filial" in df.columns:
         df["filial"] = pd.to_numeric(df["filial"], errors="coerce").round().astype("Int64")
-
     if "tipodocumento" in df.columns:
         df["tipodocumento"] = pd.to_numeric(df["tipodocumento"], errors="coerce").round().astype("Int64")
 
-    numeric_columns = [
+    numeric_cols = [
         "qtd", "valortotal", "precoultimacompra", "custoaquisicao", "customedio",
         "icms", "icms_st", "ippt", "pis_cofins", "ipi", "outros_impostos", "comissao",
     ]
-    for col in numeric_columns:
+    for col in numeric_cols:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors="coerce")
 
     if "datahora" in df.columns:
         df["datahora"] = pd.to_datetime(df["datahora"], errors="coerce")
 
-    text_columns = ["local_estoque", "documento", "codigo", "un", "tipo_movimentacao", "nome", "cfop", "chave_nfe"]
-    for col in text_columns:
+    text_cols = ["local_estoque", "documento", "codigo", "un", "tipo_movimentacao", "nome", "cfop", "chave_nfe"]
+    for col in text_cols:
         if col in df.columns:
             df[col] = df[col].astype(str)
 
     if "currenttimemillis" in df.columns:
         df["currenttimemillis"] = pd.to_numeric(df["currenttimemillis"], errors="coerce")
-
     if "id_documento" in df.columns:
         df["id_documento"] = pd.to_numeric(df["id_documento"], errors="coerce").round().astype("Int64")
 
@@ -352,7 +589,6 @@ def _transform_unico(df: pd.DataFrame) -> pd.DataFrame:
 
 def sync_unico(dates: list, unico_pg: DatabaseConnection, mercado: DatabaseConnection) -> dict:
     _section("Sync — Unico (dados históricos pré 01/04/2026)")
-
     query = load_query_from_file("movimentacao_estoque_unico.sql")
     processed, failed = [], []
 
@@ -360,11 +596,9 @@ def sync_unico(dates: list, unico_pg: DatabaseConnection, mercado: DatabaseConne
         try:
             _info(f"Processando {d} (Unico)...")
             df_raw = unico_pg.get_data(query, {"data": d})
-
             if df_raw.empty:
                 _warn(f"  Nenhum dado no Unico para {d}.")
                 continue
-
             df = _transform_unico(df_raw)
             mercado.upsert(
                 table_name="movimentacao_estoque",
@@ -374,7 +608,6 @@ def sync_unico(dates: list, unico_pg: DatabaseConnection, mercado: DatabaseConne
             )
             _ok(f"  {len(df)} registros upserted para {d}.")
             processed.append(d)
-
         except Exception as e:
             logger.error(f"Erro ao processar {d} (Unico): {e}")
             _warn(f"  FALHOU: {e}")
@@ -389,11 +622,7 @@ def sync_unico(dates: list, unico_pg: DatabaseConnection, mercado: DatabaseConne
 
 def sync_g3(dates: list) -> dict:
     _section("Sync — G3 (dados a partir de 01/04/2026)")
-
-    etl = MovimentacaoEstoqueETL(
-        source_config=G3_DATABASE,
-        target_config=BANCO_MERCADO,
-    )
+    etl = MovimentacaoEstoqueETL(source_config=G3_DATABASE, target_config=BANCO_MERCADO)
     processed, failed = [], []
 
     for d in dates:
@@ -411,70 +640,82 @@ def sync_g3(dates: list) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# Fix id_documento — reprocessa todas as datas Unico para corrigir id_documento
+# Fix id_documento — reprocessa todas as datas Unico
 # ---------------------------------------------------------------------------
 
 def fix_id_documento_unico(unico_pg: DatabaseConnection, mercado: DatabaseConnection) -> dict:
-    """
-    Reprocessa todas as datas Unico via UPSERT para sobrescrever id_documento com o valor
-    correto (m.idoriginal = operacao.id) em vez do valor antigo (m.id = linha de movimentação).
-
-    O UPSERT usa a unique key (datahora, codigo, documento, tipodocumento, tipo_movimentacao,
-    currenttimemillis) — que não inclui id_documento — então nenhuma duplicata é criada:
-    apenas o campo id_documento é atualizado nos registros existentes.
-    """
+    """Reprocessa todas as datas Unico via UPSERT para corrigir id_documento
+    (m.idoriginal = operacao.id, não m.id = linha de movimentação)."""
     _section("Fix — Corrigir id_documento de todos os registros Unico")
 
-    # Busca todas as datas distintas com dados Unico no destino
-    query_datas = """
+    q = """
         SELECT DISTINCT DATE(datahora) AS data
         FROM movimentacao_estoque
         WHERE tipodocumento IN (1, 2, 3)
         ORDER BY 1;
     """
-    df_datas = mercado.get_data(query_datas)
-
-    if df_datas.empty:
+    df = mercado.get_data(q)
+    if df.empty:
         _warn("Nenhum dado Unico encontrado no destino.")
         return {"processed": [], "failed": []}
 
-    dates = df_datas["data"].astype(str).tolist()
+    dates = df["data"].astype(str).tolist()
     _info(f"{len(dates)} datas Unico a reprocessar.")
-
     return sync_unico(dates, unico_pg, mercado)
 
 
 # ---------------------------------------------------------------------------
-# Fix chave_nfe — reprocessa todas as datas G3 para popular chave_nfe
+# Fix chave_nfe Unico — reprocessa só datas com entradas sem chave_nfe
+# ---------------------------------------------------------------------------
+
+def fix_chave_nfe_unico(unico_pg: DatabaseConnection, mercado: DatabaseConnection) -> dict:
+    """Reprocessa apenas datas Unico com entradas (tipodocumento IN (2,3)) sem chave_nfe."""
+    _section("Fix — Popular chave_nfe nas datas Unico com falhas")
+
+    q = """
+        SELECT DISTINCT DATE(datahora) AS data
+        FROM movimentacao_estoque
+        WHERE tipodocumento IN (2, 3)
+          AND tipo_movimentacao = 'E'
+          AND chave_nfe IS NULL
+        ORDER BY 1;
+    """
+    df = mercado.get_data(q)
+    if df.empty:
+        _ok("Nenhuma data com chave_nfe faltando. Tudo OK.")
+        return {"processed": [], "failed": []}
+
+    dates = df["data"].astype(str).tolist()
+    _info(f"{len(dates)} datas com entradas sem chave_nfe a reprocessar.")
+    return sync_unico(dates, unico_pg, mercado)
+
+
+# ---------------------------------------------------------------------------
+# Fix chave_nfe G3 — reprocessa todas as datas G3
 # ---------------------------------------------------------------------------
 
 def fix_chave_nfe_g3(mercado: DatabaseConnection) -> dict:
-    """
-    Reprocessa todas as datas G3 via UPSERT para sobrescrever chave_nfe com o valor
-    correto (notas_entrada.chave). Só afeta entradas (tipodocumento=55).
-    """
+    """Reprocessa todas as datas G3 para corrigir chave_nfe via UPSERT."""
     _section("Fix — Popular chave_nfe em todos os registros G3")
 
-    query_datas = """
+    q = """
         SELECT DISTINCT DATE(datahora) AS data
         FROM movimentacao_estoque
         WHERE tipodocumento IN (55, 65)
         ORDER BY 1;
     """
-    df_datas = mercado.get_data(query_datas)
-
-    if df_datas.empty:
+    df = mercado.get_data(q)
+    if df.empty:
         _warn("Nenhum dado G3 encontrado no destino.")
         return {"processed": [], "failed": []}
 
-    dates = df_datas["data"].astype(str).tolist()
+    dates = df["data"].astype(str).tolist()
     _info(f"{len(dates)} datas G3 a reprocessar.")
-
     return sync_g3(dates)
 
 
 # ---------------------------------------------------------------------------
-# Relatório final
+# Resumo
 # ---------------------------------------------------------------------------
 
 def _print_summary(results: dict) -> None:
@@ -491,98 +732,70 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         description="Auditoria e sync histórico da tabela movimentacao_estoque."
     )
-    parser.add_argument(
-        "--audit",
-        action="store_true",
-        help="Apenas audita e exibe relatório sem modificar dados.",
-    )
-    parser.add_argument(
-        "--fix-id-documento",
-        action="store_true",
-        dest="fix_id_documento",
-        help="Reprocessa todas as datas Unico para corrigir id_documento (idoriginal).",
-    )
-    parser.add_argument(
-        "--fix-chave-nfe-g3",
-        action="store_true",
-        dest="fix_chave_nfe_g3",
-        help="Reprocessa todas as datas G3 para popular chave_nfe nas entradas.",
-    )
+    parser.add_argument("--audit", action="store_true",
+                        help="Apenas audita e exibe relatório sem modificar dados.")
+    parser.add_argument("--fix-id-documento", action="store_true", dest="fix_id_documento",
+                        help="Reprocessa todas as datas Unico para corrigir id_documento.")
+    parser.add_argument("--fix-chave-nfe-g3", action="store_true", dest="fix_chave_nfe_g3",
+                        help="Reprocessa todas as datas G3 para popular chave_nfe.")
+    parser.add_argument("--fix-chave-nfe-unico", action="store_true", dest="fix_chave_nfe_unico",
+                        help="Reprocessa só as datas Unico com entradas sem chave_nfe.")
     args = parser.parse_args()
 
     mercado = _mercado_conn()
     unico_pg = _unico_pg_conn()
     g3 = _g3_conn()
 
-    # Modo especial: corrigir id_documento de todos os registros Unico
     if args.fix_id_documento:
         _info("Modo: FIX id_documento (reprocessa todas as datas Unico)")
-        results = {}
         r = fix_id_documento_unico(unico_pg, mercado)
-        results["datas_reprocessadas"] = len(r["processed"])
-        results["datas_falhou"] = len(r["failed"])
-        if r["failed"]:
-            results["falhas"] = r["failed"]
-        _print_summary(results)
+        _print_summary({"datas_reprocessadas": len(r["processed"]), "datas_falhou": len(r["failed"]), **({} if not r["failed"] else {"falhas": r["failed"]})})
         return
 
-    # Modo especial: popular chave_nfe em todos os registros G3
+    if args.fix_chave_nfe_unico:
+        _info("Modo: FIX chave_nfe Unico (só datas com entradas sem chave_nfe)")
+        r = fix_chave_nfe_unico(unico_pg, mercado)
+        _print_summary({"datas_reprocessadas": len(r["processed"]), "datas_falhou": len(r["failed"]), **({} if not r["failed"] else {"falhas": r["failed"]})})
+        return
+
     if args.fix_chave_nfe_g3:
         _info("Modo: FIX chave_nfe G3 (reprocessa todas as datas G3)")
-        results = {}
         r = fix_chave_nfe_g3(mercado)
-        results["datas_reprocessadas"] = len(r["processed"])
-        results["datas_falhou"] = len(r["failed"])
-        if r["failed"]:
-            results["falhas"] = r["failed"]
-        _print_summary(results)
+        _print_summary({"datas_reprocessadas": len(r["processed"]), "datas_falhou": len(r["failed"]), **({} if not r["failed"] else {"falhas": r["failed"]})})
         return
 
     sync_mode = not args.audit
-
-    if sync_mode:
-        _info("Modo: AUDITORIA + SYNC (use --audit para só relatório)")
-    else:
-        _info("Modo: APENAS AUDITORIA (nenhum dado será modificado)")
+    _info("Modo: AUDITORIA + SYNC" if sync_mode else "Modo: APENAS AUDITORIA")
 
     results = {}
 
-    # Fase 1 — Duplicatas
+    # Fase 1-4: auditorias baseadas em premissas explícitas
+    audit_volume(mercado)
+    audit_saidas_sem_mov(mercado)
+    audit_chave_nfe(mercado)
+    audit_id_documento(mercado)
+
+    # Fase 5-6: integridade estrutural
     dup_count = audit_duplicates(mercado, sync=sync_mode)
     results["duplicatas_encontradas"] = dup_count
-
-    # Fase 2 — Constraint UNIQUE
     has_constraint = audit_unique_constraint(mercado)
     results["unique_constraint_ok"] = has_constraint
 
-    # Fase 3 — Vendas sem movimentação
-    df_sem_mov = audit_vendas_sem_mov(mercado)
-    results["datas_com_vendas_sem_mov"] = len(df_sem_mov)
-    results["total_vendas_sem_mov"] = int(df_sem_mov["vendas_sem_mov"].sum()) if not df_sem_mov.empty else 0
-
-    # Fase 4 — Datas faltando
+    # Fase 7: datas faltando + sync se necessário
     missing_unico = get_missing_dates_unico(unico_pg, mercado)
     missing_g3 = get_missing_dates_g3(g3, mercado)
     results["datas_faltando_unico"] = len(missing_unico)
     results["datas_faltando_g3"] = len(missing_g3)
 
-    # Sync (se não for só auditoria)
     if sync_mode:
         if missing_unico:
             r = sync_unico(missing_unico, unico_pg, mercado)
             results["sync_unico_processed"] = len(r["processed"])
             results["sync_unico_failed"] = len(r["failed"])
-        else:
-            results["sync_unico_processed"] = 0
-            results["sync_unico_failed"] = 0
-
         if missing_g3:
             r = sync_g3(missing_g3)
             results["sync_g3_processed"] = len(r["processed"])
             results["sync_g3_failed"] = len(r["failed"])
-        else:
-            results["sync_g3_processed"] = 0
-            results["sync_g3_failed"] = 0
 
     _print_summary(results)
 

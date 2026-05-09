@@ -51,7 +51,7 @@ class NotasFiscaisETL:
             timestamp_cols = ['data_emissao', 'data_inclusao']
             for col in timestamp_cols:
                 if col in df.columns:
-                    df[col] = pd.to_datetime(df[col], errors='coerce')
+                    df[col] = pd.to_datetime(df[col], errors='coerce', dayfirst=True)
                     df[col] = df[col].replace({pd.NaT: None})
 
             # Cleanup de Booleanos e Strings

@@ -1,7 +1,7 @@
 SELECT 
     n.numero AS codigo,
     m.chave_nfe,
-    m.dhEmi AS data_emissao,
+    STR_TO_DATE(m.dhEmi, '%d/%m/%Y %H:%i:%s') AS data_emissao,
     m.xNome AS fornecedor,
     m.CNPJCPF AS cpnj_cpf,
     CAST(REPLACE(m.vNF, ',', '.') AS DECIMAL(15,2)) AS valor,

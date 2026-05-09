@@ -68,10 +68,9 @@ from utils.data_transformers import clean_dataframe_nans
 
 CUTOFF_DATE = date(2026, 4, 1)
 
-# Chave única do UPSERT — id_documento e chave_nfe não fazem parte
+# Chave única do UPSERT — datahora e chave_nfe não fazem parte da chave de controle
 UNIQUE_COLUMNS = [
-    "datahora", "codigo", "documento",
-    "tipodocumento", "tipo_movimentacao", "currenttimemillis",
+    "tipodocumento", "id_documento", "currenttimemillis",
 ]
 
 logger = setup_logger("audit_movimentacao_estoque", log_file="logs/audit_movimentacao_estoque.log")
@@ -367,12 +366,11 @@ def audit_duplicates(mercado: DatabaseConnection, sync: bool) -> int:
     _section("Fase 5 — Duplicatas na chave única do UPSERT")
 
     q = """
-        SELECT datahora, codigo, documento, tipodocumento, tipo_movimentacao,
-               currenttimemillis, COUNT(*) AS cnt
+        SELECT tipodocumento, id_documento, currenttimemillis, COUNT(*) AS cnt
         FROM movimentacao_estoque
-        GROUP BY datahora, codigo, documento, tipodocumento, tipo_movimentacao, currenttimemillis
+        GROUP BY tipodocumento, id_documento, currenttimemillis
         HAVING COUNT(*) > 1
-        ORDER BY datahora;
+        ORDER BY tipodocumento, id_documento;
     """
     df = mercado.get_data(q)
 
@@ -395,8 +393,7 @@ def audit_duplicates(mercado: DatabaseConnection, sync: bool) -> int:
                 SELECT ctid FROM (
                     SELECT ctid,
                            ROW_NUMBER() OVER (
-                               PARTITION BY datahora, codigo, documento,
-                                            tipodocumento, tipo_movimentacao, currenttimemillis
+                               PARTITION BY tipodocumento, id_documento, currenttimemillis
                                ORDER BY ctid
                            ) AS rn
                     FROM movimentacao_estoque
@@ -444,9 +441,9 @@ def audit_unique_constraint(mercado: DatabaseConnection) -> bool:
 
     if df.empty:
         _warn("Nenhuma constraint UNIQUE encontrada!")
-        _warn("Sugestão: CREATE UNIQUE INDEX IF NOT EXISTS uq_movimentacao_estoque")
-        _warn("  ON public.movimentacao_estoque (datahora, codigo, documento,")
-        _warn("  tipodocumento, tipo_movimentacao, currenttimemillis);")
+        _warn("Sugestão: CREATE UNIQUE INDEX movimentacao_estoque_uk")
+        _warn("  ON public.movimentacao_estoque (tipodocumento, id_documento, currenttimemillis)")
+        _warn("  NULLS NOT DISTINCT;")
         return False
 
     _info(df.to_string(index=False))
@@ -695,22 +692,24 @@ def fix_chave_nfe_unico(unico_pg: DatabaseConnection, mercado: DatabaseConnectio
 # ---------------------------------------------------------------------------
 
 def fix_chave_nfe_g3(mercado: DatabaseConnection) -> dict:
-    """Reprocessa todas as datas G3 para corrigir chave_nfe via UPSERT."""
-    _section("Fix — Popular chave_nfe em todos os registros G3")
+    """Reprocessa apenas datas G3 com NF-e de entrada (tipodocumento=55) sem chave_nfe."""
+    _section("Fix — Popular chave_nfe nas entradas G3 com falhas (tipodocumento=55)")
 
     q = """
         SELECT DISTINCT DATE(datahora) AS data
         FROM movimentacao_estoque
-        WHERE tipodocumento IN (55, 65)
+        WHERE tipodocumento = 55
+          AND tipo_movimentacao = 'E'
+          AND chave_nfe IS NULL
         ORDER BY 1;
     """
     df = mercado.get_data(q)
     if df.empty:
-        _warn("Nenhum dado G3 encontrado no destino.")
+        _ok("Nenhuma data G3 com chave_nfe faltando. Tudo OK.")
         return {"processed": [], "failed": []}
 
     dates = df["data"].astype(str).tolist()
-    _info(f"{len(dates)} datas G3 a reprocessar.")
+    _info(f"{len(dates)} datas G3 com entradas sem chave_nfe a reprocessar.")
     return sync_g3(dates)
 
 

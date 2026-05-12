@@ -3,12 +3,14 @@ from handlers.db_connection import DatabaseConnection
 from handlers.query_loader import get_etl_query, get_etl_config
 from utils.data_transformers import clean_dataframe_nans
 from handlers.log_handler import setup_logger
+from services.embedding_service import EmbeddingService
 from typing import Dict
 
 class CatalogoETL:
     def __init__(self, source_config: Dict, target_config: Dict):
         self.source_connection = DatabaseConnection(source_config)
         self.target_connection = DatabaseConnection(target_config)
+        self.embedding_service = EmbeddingService()
         self.logger = setup_logger("catalogo_etl", log_file="logs/catalogo_etl.log")
         
     def transform_data(self, df: pd.DataFrame) -> pd.DataFrame:
@@ -46,13 +48,38 @@ class CatalogoETL:
             date_columns = ['cadastro_at', 'ultima_compra_at', 'ultima_venda_at', 'edited_at']
             for col in date_columns:
                 if col in df.columns:
-                    df[col] = pd.to_datetime(df[col], errors='coerce')
+                    df[col] = pd.to_datetime(df[col], errors='coerce').dt.date
+
+            # Rename columns to match target table catalogo.produtos
+            column_mapping = {
+                'sku': 'codigo',
+                'stock': 'estoque',
+                'balanca_integrada': 'pesavel',
+                'ultima_venda_at': 'ultima_venda',
+                'ultima_compra_at': 'ultima_compra',
+                'imagem': 'imagem_url'
+            }
+            df = df.rename(columns=column_mapping)
             
-            # Return only columns that exist in target table to avoid insertion errors
+            # Map pesavel (1/0) to ('S'/'N')
+            if 'pesavel' in df.columns:
+                df['pesavel'] = df['pesavel'].map({1: 'S', 0: 'N'}).fillna('N')
+
+            # List of all target columns to be sent to the database
             target_columns = [
-                'sku', 'ean', 'nome', 'nome_pdv', 
-                'preco_ultima_compra', 'preco_venda', 'stock'
+                'codigo', 'ean', 'nome', 'nome_pdv', 'unidade_venda', 
+                'preco_venda', 'estoque', 'ncm', 'pesavel',
+                'ultima_venda', 'ultima_compra', 'cadastro_at', 'edited_at',
+                'preco_ultima_compra', 'preco_custo', 'fator_multiplicativo',
+                'cean_no_fornecedor', 'id_grupo', 'qtd_por_caixa', 'cest',
+                'id_regra_icms', 'id_grupo_ipi', 'id_grupo_pis', 'id_grupo_cofins',
+                'paf_p_st', 'ippt', 'iat', 'ecf_icms_st', 'imagem_url', 'embedding'
             ]
+            
+            # Generate embeddings for the products
+            self.logger.info("Generating embeddings for products")
+            df = self.embedding_service.process_dataframe(df, self.target_connection, text_col='nome')
+            
             df = df[[c for c in target_columns if c in df.columns]]
             
             return clean_dataframe_nans(df)
@@ -76,23 +103,37 @@ class CatalogoETL:
     def load_data(self, df: pd.DataFrame) -> None:
         try:
             self.logger.info(f"Loading {len(df)} records")
-            
+
             config = get_etl_config('catalogo')
-            table_name = config.get('table', 'catalogo')
-            schema = config.get('schema', 'public')
-            
+            table_name = config.get('table', 'produtos')
+            schema = config.get('schema', 'catalogo')
+
+            # Remove products no longer in the source (EXCLUIDO=1 filtered out)
+            current_codes = df['codigo'].dropna().tolist()
             self.target_connection.connect()
-            with self.target_connection.connection.cursor() as cursor:
-                cursor.execute(f"TRUNCATE TABLE {schema}.{table_name}")
+            with self.target_connection.connection.cursor() as cur:
+                cur.execute(
+                    f"DELETE FROM {schema}.{table_name} WHERE codigo <> ALL(%s)",
+                    (current_codes,)
+                )
+                deleted = cur.rowcount
                 self.target_connection.connection.commit()
             self.target_connection.disconnect()
-            
-            self.target_connection.insert_batch(
-                table_name=table_name,
-                data=df,
-                schema=schema
-            )
-            
+            if deleted:
+                self.logger.info(f"Removed {deleted} discontinued products from {schema}.{table_name}")
+
+            # Produtos com novo embedding: upsert completo
+            df_new_emb = df[df['embedding'].notna()]
+            # Produtos com embedding já no banco: upsert sem a coluna embedding
+            df_cached_emb = df[df['embedding'].isna()].drop(columns=['embedding'])
+
+            if not df_new_emb.empty:
+                self.logger.info(f"Upserting {len(df_new_emb)} products with new embeddings")
+                self.target_connection.upsert(table_name=table_name, data=df_new_emb, unique_columns=['codigo'], schema=schema)
+            if not df_cached_emb.empty:
+                self.logger.info(f"Upserting {len(df_cached_emb)} products preserving existing embeddings")
+                self.target_connection.upsert(table_name=table_name, data=df_cached_emb, unique_columns=['codigo'], schema=schema)
+
             self.logger.info("Data load completed successfully")
             
         except Exception as e:

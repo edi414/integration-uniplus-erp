@@ -54,8 +54,8 @@
 
     "catalogo": {
         "database": "banco_mercado",
-        "schema": "public",
-        "table": "catalogo",
+        "schema": "catalogo",
+        "table": "produtos",
         "query_file": "catalogo.sql",
         "logic_check_missing_dates": []
     }

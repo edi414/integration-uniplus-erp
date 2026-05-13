@@ -8,6 +8,7 @@ from services.catalogo import CatalogoETL
 from services.contas_a_pagar import ContasAPagarETL
 from services.movimentacao_estoque import MovimentacaoEstoqueETL
 from services.nfe_processor import NFeProcessorETL
+from services.produtos_similares import ProdutosSimilaresService
 from settings.db_config import G3_DATABASE, get_target_config
 from handlers.log_handler import app_logger
 
@@ -64,6 +65,14 @@ if __name__ == "__main__":
 
     app_logger.info("Iniciando Catalogo ETL (Sincronizacao de Produtos)...")
     run_catalogo_etl()
+
+    app_logger.info("Iniciando compute de Produtos Similares (FAISS)...")
+    try:
+        svc = ProdutosSimilaresService(get_target_config())
+        n_pairs = svc.run()
+        app_logger.info(f"   Pares similares armazenados: {n_pairs}")
+    except Exception as e:
+        app_logger.warning(f"   [WARN] Produtos Similares falhou: {e}")
 
     app_logger.info("Iniciando Contas a Pagar ETL...")
     cap_summary = run_contas_a_pagar_etl()
